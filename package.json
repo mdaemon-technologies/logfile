@@ -1,0 +1,49 @@
+{
+  "name": "@mdaemon/logfile",
+  "version": "1.0.0",
+  "description": "A node logging utility",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "typings": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "jest",
+    "dev-test": "jest --watchAll",
+    "build": "rollup -c",
+    "dev": "rollup -c -w"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mdaemon-technologies/logfile.git"
+  },
+  "keywords": [
+    "logging",
+    "logfile",
+    "node"
+  ],
+  "author": {
+    "name": "MDaemon Technologies, Ltd.",
+    "email": "jonathan.ehman@mdaemon.com",
+    "url": "https://www.mdaemon.com"
+  },
+  "license": "LGPL-2.1",
+  "bugs": {
+    "url": "https://github.com/mdaemon-technologies/logfile/issues"
+  },
+  "homepage": "https://github.com/mdaemon-technologies/logfile#readme",
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "rollup": "^4.9.6",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "tslib": "^2.6.2"
+  }
+}
