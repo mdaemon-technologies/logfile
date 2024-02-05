@@ -12,6 +12,7 @@ interface LogFileOptions {
   dir?: string;
   file?: string;
   rollover?: boolean;
+  logToConsole?: boolean;
   startLog?: string;
   endLog?: string;
   logStr?: string;
@@ -20,25 +21,23 @@ interface LogFileOptions {
 class LogFile {
 
   date: string = "";
-  
   currentFile: string = "";
   logs: string[] = [];
   
+  dir: string;
+  file: string;
+  
   logStr: string;
-  
   startLog: string;
-  
   endLog: string;
   
   rollover: boolean;
-
-  dir: string;
-
-  file: string;
+  logToConsole: boolean = false;
 
   constructor(options: LogFileOptions) {
     this.dir = options.dir || "./logs";
-    this.file = options.file || "log-%DATE%.txt";
+    this.file = options.file || "log-%DATE%.log";
+    this.logToConsole = options.logToConsole || false;
     this.rollover = typeof options.rollover !== "undefined" ? options.rollover : true;
     this.startLog = options.startLog || "-----------------------------------------\n" +
                     "------- Log Started: " + new Date().toUTCString() + "\n" +
@@ -141,7 +140,9 @@ class LogFile {
       this.start();
     }
     this.logs.push(this.logStr.replace("%DATE%", getDate()).replace("%TIME%", getTime()).replace("%LEVEL%", level.toString()).replace("%MESSAGE%", message));
-    
+    if (this.logToConsole) {
+      console.log(message);
+    }
     this.#rollOver();
   }
 }
