@@ -19,29 +19,26 @@ interface LogFileOptions {
 
 class LogFile {
 
-  date: string;
-
+  date: string = "";
+  
+  currentFile: string = "";
+  logs: string[] = [];
+  
   logStr: string;
-
+  
   startLog: string;
   
   endLog: string;
-
+  
   rollover: boolean;
-
-  logs: string[];
 
   dir: string;
 
   file: string;
 
-  currentFile: string;
-
   constructor(options: LogFileOptions) {
-    this.date = "";
     this.dir = options.dir || "./logs";
     this.file = options.file || "log-%DATE%.txt";
-    this.currentFile = "";
     this.rollover = typeof options.rollover !== "undefined" ? options.rollover : true;
     this.startLog = options.startLog || "-----------------------------------------\n" +
                     "------- Log Started: " + new Date().toUTCString() + "\n" +
