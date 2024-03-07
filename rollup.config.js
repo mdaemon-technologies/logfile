@@ -1,5 +1,4 @@
 import typescript from "@rollup/plugin-typescript"
-import commonjs from "@rollup/plugin-typescript"
 
 export default [
   {
