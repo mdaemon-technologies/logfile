@@ -30,7 +30,7 @@
     "email": "jonathan.ehman@mdaemon.com",
     "url": "https://www.mdaemon.com"
   },
-  "license": "LGPL-2.1",
+  "license": "GPL-3.0",
   "bugs": {
     "url": "https://github.com/mdaemon-technologies/logfile/issues"
   },
