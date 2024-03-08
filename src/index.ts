@@ -1,4 +1,4 @@
-import fs from "fs";
+import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 
 function getDate() {
   return new Date().toISOString().slice(0, 10);
@@ -8,9 +8,20 @@ function getTime() {
   return new Date().toISOString().slice(11, 19);
 }
 
+/**
+ * Interface for log file options.
+ * 
+ * @property dir - Optional directory to write log files to. Defaults to current working directory.
+ * @property file - Name of log file. Defaults to 'app.log'.  
+ * @property rollover - Whether to rollover the log file when it reaches a max size. Default false.
+ * @property logToConsole - Whether to also log to the console. Default false. 
+ * @property startLog - Message to log on application start.
+ * @property endLog - Message to log on application end.
+ * @property logStr - Format string for log messages. Defaults to '[{timestamp}] {level}: {msg}'.
+ */
 interface LogFileOptions {
   dir?: string;
-  file?: string;
+  fileFormat?: string;
   rollover?: boolean;
   logToConsole?: boolean;
   startLog?: string;
@@ -18,132 +29,340 @@ interface LogFileOptions {
   logStr?: string;
 }
 
+/**
+ * LogFile class to handle writing log messages to file.
+ *
+ * @param options - Options for configuring the log file.
+ * @param options.dir - Directory to write log files. Default ./logs.
+ * @param options.fileFormat - Log file name format. Default log-%DATE%.log. 
+ * @param options.rollover - Whether to rollover log when size limit reached.
+ * @param options.logToConsole - Whether to also log to console. 
+ * @param options.startLog - Message logged on start.
+ * @param options.endLog - Message logged on end.  
+ * @param options.logStr - Format for log messages.
+ *
+ * @returns LogFile instance.
+ */
 class LogFile {
 
-  date: string = "";
-  currentFile: string = "";
-  logs: string[] = [];
-  
-  dir: string;
-  file: string;
-  
-  logStr: string;
-  startLog: string;
-  endLog: string;
-  
-  rollover: boolean;
-  logToConsole: boolean = false;
+  private date: string = "";
+  private currentFile: string = "";
+  private logs: string[] = [];
+  private dir: string;
+  private fileFormat: string;
+  private logStr: string;
+  private startLog: string;
+  private endLog: string;
+  private rollover: boolean;
+  private logToConsole: boolean = false;
 
   constructor(options: LogFileOptions) {
     this.dir = options.dir || "./logs";
-    this.file = options.file || "log-%DATE%.log";
+    this.fileFormat = options.fileFormat || "log-%DATE%.log";
     this.logToConsole = options.logToConsole || false;
     this.rollover = typeof options.rollover !== "undefined" ? options.rollover : true;
+    this.logStr = options.logStr || "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
     this.startLog = options.startLog || "-----------------------------------------\n" +
-                    "------- Log Started: " + new Date().toUTCString() + "\n" +
-                    "-----------------------------------------\n";
+      "------- Log Started: %DATETIME%\n" +
+      "-----------------------------------------\n";
 
     this.endLog = options.endLog || "-----------------------------------------\n" +
-                  "------- Log Ended: " + new Date().toUTCString() + "\n" +
-                  "-----------------------------------------\n";
-
-    this.logStr = options.logStr || "%DATE% %TIME% | %LEVEL% | %MESSAGE%\n";
+      "------- Log Ended: %DATETIME%\n" +
+      "-----------------------------------------\n";
   }
 
-  setLogStr(logStr: string) {
-    this.logStr = logStr;
-  }
-
-  setStartLog(startLog: string) {
-    this.startLog = startLog;
-  }
-
-  setEndLog(endLog: string) { 
-    this.endLog = endLog;
-  }
-
-  setRollover(rollover: boolean) {
-    this.rollover = rollover;
-  }
-
-  getHelp() {
-    console.log("Log Levels: \n" +
-                "0: Info\n" +
-                "1: Warning\n" +
-                "2: Error\n" +
-                "3: Critical\n" +
-                "4: Debug\n");
-    console.log("Log String Macros: \n" +
-    "%DATE%: Date\n" +
-    "%TIME%: Time\n" +
-    "%LEVEL%: Log Level\n" +
-    "%MESSAGE%: Message\n");
-    console.log("Default directory:./logs");
-  }
-
-  #rollOver() {
+  /**
+ * Rollover to a new log file if the date has changed.
+ * 
+ * Check if the current date is different than the stored date.
+ * If so, update the stored date.
+ * 
+ * If rollover is enabled:
+ * - Append the end log message to the current log file.
+ * - Generate the new log file name with the updated date.
+ * - Write the start log message to the new file.
+ * - Push any buffered logs to the new file.
+ */
+  private rollOver(): undefined {
     if (getDate() === this.date) {
       return;
     }
 
     this.date = getDate();
     if (this.rollover) {
-      fs.appendFileSync(this.dir + "/" + this.currentFile, this.endLog);
-      this.currentFile = this.file.replace("%DATE%", this.date);
-      fs.writeFileSync(this.dir + "/" + this.currentFile, this.startLog);
-      this.#pushLogs();
+      appendFileSync(this.file(), this.endLog.replace("%DATETIME%", new Date().toUTCString()));
+      this.currentFile = this.fileFormat.replace("%DATE%", this.date);
+      writeFileSync(this.file(), this.startLog.replace("%DATETIME%", new Date().toUTCString()));
+      this.pushLogs();
     }
   }
 
-  #pushLogs() {
-    if (this.logs.length > 0) {
-      fs.appendFileSync(this.dir + "/" + this.currentFile, this.logs.join(""));
+  /**
+ * If there are logs buffered in memory, write them 
+ * to the current log file. Clear the buffer after
+ * writing.
+ */
+  private pushLogs(): undefined {
+    if (this.logs.length > 0 && !!this.currentFile) {
+      appendFileSync(this.file(), this.logs.join("\n"));
       this.logs = [];
     }
   }
 
-  start() {
-    if (!fs.existsSync(this.dir)) {
-      fs.mkdirSync(this.dir);
+  /**
+ * Converts a numeric log level to a string representation.
+ * 
+ * @param level The numeric log level to convert.
+ * @returns The string representation of the log level.
+ */
+  private logLevelToString(level: number): string {
+    let levelStr = "";
+    switch (level) {
+      case 0:
+        levelStr = "INFO";
+        break;
+      case 1:
+        levelStr = "WARNING";
+        break;
+      case 2:
+        levelStr = "ERROR";
+        break;
+      case 3:
+        levelStr = "CRITICAL";
+        break;
+      case 4:
+        levelStr = "DEBUG";
+        break;
+    }
+    return levelStr;
+  }
+
+  /**
+ * Sets the log directory.
+ * 
+ * @param dir - The path to the log directory.
+ */
+  setLogDir(dir: string): undefined {
+    this.dir = dir;
+  }
+
+  /**
+ * Gets the current log directory.
+ * 
+ * @returns The path to the current log directory.
+ */
+  getLogDir(): string {
+    return this.dir;
+  }
+
+  /**
+ * Sets the log string template to use for logging.
+ * 
+ * @param logStr The log string template.
+ */
+  setLogStr(logStr: string): undefined {
+    this.logStr = logStr;
+  }
+
+  /**
+ * Gets the log string template used for logging.
+ * 
+ * @returns The log string template.
+ */
+  getLogStr(): string {
+    return this.logStr;
+  }
+
+  /**
+ * Sets the start log message to use when logging starts.
+ * 
+ * @param startLog The start log message. 
+ */
+  setStartLog(startLog: string): undefined {
+    this.startLog = startLog;
+  }
+
+  /**
+ * Gets the start log message used when logging starts.
+ * 
+ * @returns The start log message.
+ */
+  getStartLog(): string {
+    return this.startLog;
+  }
+
+  /**
+ * Sets the end log message to use when logging ends.
+ * 
+ * @param endLog The end log message.
+ */
+  setEndLog(endLog: string): undefined {
+    this.endLog = endLog;
+  }
+
+  /**
+ * Gets the end log message used when logging ends.
+ *
+ * @returns The end log message.
+ */
+  getEndLog(): string {
+    return this.endLog;
+  }
+
+  /**
+ * Sets whether to enable rollover when the maximum log size is reached.
+ * 
+ * @param rollover Whether to enable log rollover.
+ */
+  setRollover(rollover: boolean): undefined {
+    this.rollover = rollover;
+  }
+
+  /**
+ * Gets whether log rollover is enabled when the maximum log size is reached.
+ * 
+ * @returns True if log rollover is enabled, false otherwise.
+ */
+  getRollover(): boolean {
+    return this.rollover;
+  }
+
+  /**
+ * Logs help information to the console about log levels, log string macros, 
+ * and the default log directory.
+ */
+  getHelp(): undefined {
+    console.log("Log Levels: \n" +
+      "0: Info\n" +
+      "1: Warning\n" +
+      "2: Error\n" +
+      "3: Critical\n" +
+      "4: Debug\n");
+    console.log("Log String Macros: \n" +
+      "%DATETIME%: Date and Time\n" +
+      "%DATE%: Date\n" +
+      "%TIME%: Time\n" +
+      "%LEVEL%: Log Level\n" +
+      "%MESSAGE%: Message\n");
+    console.log("Default directory:./logs");
+  }
+
+  /**
+ * Gets the path to the current log file.
+ * 
+ * @returns The path to the current log file.
+ */
+  file(): string {
+    return this.dir + "/" + this.currentFile;
+  }
+
+  /**
+ * Gets the path to the log file from the previous date.
+ *
+ * @returns The path to the log file from the previous date.
+ */
+  lastFile(): string {
+    return this.dir + "/" + this.fileFormat.replace("%DATE%", getDate());
+  }
+
+  private pushInterval: NodeJS.Timeout | null = null;
+  private rolloverInterval: NodeJS.Timeout | null = null;
+
+  /**
+ * Starts the logger by initializing the log directory and files.
+ * 
+ * @param dir - The directory to store log files.
+ * @param fileFormat - The file naming format for log files.
+ * @param rollover - Whether to enable log file rollover. 
+ * @returns True if the log file was initialized successfully, false otherwise.
+ */
+  start(): boolean {
+    if (!existsSync(this.dir)) {
+      mkdirSync(this.dir);
     }
 
-    this.currentFile = this.file.replace("%DATE%", getDate());
+    this.currentFile = this.fileFormat.replace("%DATE%", getDate());
 
-    if (!fs.existsSync(this.dir + "/" + this.currentFile)) { 
-      fs.writeFileSync(this.dir + "/" + this.currentFile, this.startLog);
+    if (!existsSync(this.file())) {
+      writeFileSync(this.file(), this.startLog.replace("%DATETIME%", new Date().toUTCString()));
     }
 
     this.date = getDate();
-    setInterval(this.#pushLogs.bind(this), 1000);
+    this.pushInterval = setInterval(this.pushLogs.bind(this), 1000);
 
     if (this.rollover) {
-      setInterval(this.#rollOver.bind(this), 5000);
+      this.rolloverInterval = setInterval(this.rollOver.bind(this), 5000);
     }
+
+    return existsSync(this.file());
   }
 
-  stop() {
-    if (!fs.existsSync(this.dir)) {
-      return;
+  /**
+ * Stops the logger by clearing intervals, closing the log file, and resetting state.
+ * 
+ * @returns True if the logger was stopped successfully, false otherwise.
+ */
+  stop(): boolean {
+    if (!existsSync(this.dir)) {
+      return true;
     }
 
-    if (!fs.existsSync(this.dir + "/" + this.currentFile)) {
-      return;
+    if (!existsSync(this.file())) {
+      return true;
     }
 
-    fs.appendFileSync(this.dir + "/" + this.currentFile, this.endLog);
+    try {
+      this.pushLogs();
+      appendFileSync(this.file(), this.endLog.replace("%DATETIME%", new Date().toUTCString()));
 
-    this.currentFile = "";
+      if (this.pushInterval) {
+        clearInterval(this.pushInterval);
+      }
+
+      if (this.rolloverInterval) {
+        clearInterval(this.rolloverInterval);
+      }
+
+      this.currentFile = "";
+    } catch (ex) {
+      return false;
+    }
+
+    return true;
   }
 
-  log(message: string, level: number = 0) {
-    if (!this.currentFile) {
-      this.start();
+  /**
+ * Logs a message to the log file with the given log level. 
+ * 
+ * @param message - The message to log.
+ * @param level - The log level, defaults to 0.
+ * @returns True if the log was successful, false otherwise.
+ */
+  log(message: string, level: number = 0): boolean {
+    try {
+      if (!this.currentFile) {
+        this.start();
+      }
+
+      let logThis = this.logStr.replace("%DATETIME%", `${getDate()} ${getTime()}`)
+        .replace("%DATE%", getDate())
+        .replace("%TIME%", getTime())
+        .replace("%LEVEL%", this.logLevelToString(level))
+        .replace("%MESSAGE%", message);
+
+      this.logs.push(logThis);
+
+      if (this.logToConsole) {
+        console.log(logThis);
+      }
+
+      this.rollOver();
+
+    } catch (ex) {
+      return false;
     }
-    this.logs.push(this.logStr.replace("%DATE%", getDate()).replace("%TIME%", getTime()).replace("%LEVEL%", level.toString()).replace("%MESSAGE%", message));
-    if (this.logToConsole) {
-      console.log(message);
-    }
-    this.#rollOver();
+
+    return true;
   }
 }
 
