@@ -138,6 +138,38 @@ var LogFile = /** @class */ (function () {
         return this.dir;
     };
     /**
+   * Sets the file name format to use for log files.
+   *
+   * @param fileFormat - The file name format
+   */
+    LogFile.prototype.setFileFormat = function (fileFormat) {
+        this.fileFormat = fileFormat;
+    };
+    /**
+   * Gets the current file name format for log files.
+   *
+   * @returns The current file name format
+   */
+    LogFile.prototype.getFileFormat = function () {
+        return this.fileFormat;
+    };
+    /**
+   * Sets whether to log to the console.
+   *
+   * @param logToConsole - Whether logging should be enabled on the console.
+   */
+    LogFile.prototype.setLogToConsole = function (logToConsole) {
+        this.logToConsole = logToConsole;
+    };
+    /**
+   * Gets whether logging to console is enabled.
+   *
+   * @returns True if logging to console is enabled, false otherwise.
+   */
+    LogFile.prototype.getLogToConsole = function () {
+        return this.logToConsole;
+    };
+    /**
    * Sets the log string template to use for logging.
    *
    * @param logStr The log string template.
