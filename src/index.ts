@@ -20,6 +20,7 @@ function getTime() {
  * @property logStr - Format string for log messages. Defaults to '[{timestamp}] {level}: {msg}'.
  */
 interface LogFileOptions {
+  logLevel?: number;
   dir?: string;
   fileFormat?: string;
   rollover?: boolean;
@@ -33,6 +34,7 @@ interface LogFileOptions {
  * LogFile class to handle writing log messages to file.
  *
  * @param options - Options for configuring the log file.
+ * @param options.logLevel - Log level to log at. Default 0.
  * @param options.dir - Directory to write log files. Default ./logs.
  * @param options.fileFormat - Log file name format. Default log-%DATE%.log. 
  * @param options.rollover - Whether to rollover log when size limit reached.
@@ -55,8 +57,16 @@ class LogFile {
   private endLog: string;
   private rollover: boolean;
   private logToConsole: boolean = false;
+  private logLevel: number = 0;
+
+  static INFO : number = 0;
+  static WARNING : number = 1;
+  static ERROR : number = 2;
+  static CRITICAL : number = 3;
+  static DEBUG : number = 4;
 
   constructor(options: LogFileOptions) {
+    this.logLevel = options.logLevel || LogFile.INFO;
     this.dir = options.dir || "./logs";
     this.fileFormat = options.fileFormat || "log-%DATE%.log";
     this.logToConsole = options.logToConsole || false;
@@ -138,6 +148,24 @@ class LogFile {
   }
 
   /**
+ * Sets the log level.
+ *
+ * @param level - The numeric log level to set.
+ */
+  setLogLevel(level: number): undefined {
+    this.logLevel = level;
+  }
+
+  /**
+ * Gets the current log level.
+ * 
+ * @returns The current numeric log level.
+ */
+  getLogLevel(): number {
+    return this.logLevel;
+  }
+
+  /**
  * Sets the log directory.
  * 
  * @param dir - The path to the log directory.
@@ -153,6 +181,42 @@ class LogFile {
  */
   getLogDir(): string {
     return this.dir;
+  }
+
+  /**
+ * Sets the file name format to use for log files.
+ * 
+ * @param fileFormat - The file name format
+ */
+  setFileFormat(fileFormat: string): undefined {
+    this.fileFormat = fileFormat;
+  }
+
+  /**
+ * Gets the current file name format for log files.
+ * 
+ * @returns The current file name format
+ */
+  getFileFormat(): string {
+    return this.fileFormat;
+  }
+
+  /**
+ * Sets whether to log to the console.
+ *
+ * @param logToConsole - Whether logging should be enabled on the console.
+ */
+  setLogToConsole(logToConsole: boolean): undefined {
+    this.logToConsole = logToConsole;
+  }
+
+  /**
+ * Gets whether logging to console is enabled.
+ * 
+ * @returns True if logging to console is enabled, false otherwise.
+ */
+  getLogToConsole(): boolean {
+    return this.logToConsole;
   }
 
   /**
@@ -342,6 +406,11 @@ class LogFile {
     try {
       if (!this.currentFile) {
         this.start();
+      }
+
+      if (this.logLevel < level) {
+        this.rollOver();
+        return true;
       }
 
       let logThis = this.logStr.replace("%DATETIME%", `${getDate()} ${getTime()}`)

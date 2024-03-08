@@ -10,6 +10,7 @@ function getTime() {
  * LogFile class to handle writing log messages to file.
  *
  * @param options - Options for configuring the log file.
+ * @param options.logLevel - Log level to log at. Default 0.
  * @param options.dir - Directory to write log files. Default ./logs.
  * @param options.fileFormat - Log file name format. Default log-%DATE%.log.
  * @param options.rollover - Whether to rollover log when size limit reached.
@@ -26,8 +27,10 @@ var LogFile = /** @class */ (function () {
         this.currentFile = "";
         this.logs = [];
         this.logToConsole = false;
+        this.logLevel = 0;
         this.pushInterval = null;
         this.rolloverInterval = null;
+        this.logLevel = options.logLevel || LogFile.INFO;
         this.dir = options.dir || "./logs";
         this.fileFormat = options.fileFormat || "log-%DATE%.log";
         this.logToConsole = options.logToConsole || false;
@@ -101,6 +104,22 @@ var LogFile = /** @class */ (function () {
                 break;
         }
         return levelStr;
+    };
+    /**
+   * Sets the log level.
+   *
+   * @param level - The numeric log level to set.
+   */
+    LogFile.prototype.setLogLevel = function (level) {
+        this.logLevel = level;
+    };
+    /**
+   * Gets the current log level.
+   *
+   * @returns The current numeric log level.
+   */
+    LogFile.prototype.getLogLevel = function () {
+        return this.logLevel;
     };
     /**
    * Sets the log directory.
@@ -281,6 +300,10 @@ var LogFile = /** @class */ (function () {
             if (!this.currentFile) {
                 this.start();
             }
+            if (this.logLevel < level) {
+                this.rollOver();
+                return true;
+            }
             var logThis = this.logStr.replace("%DATETIME%", "".concat(getDate(), " ").concat(getTime()))
                 .replace("%DATE%", getDate())
                 .replace("%TIME%", getTime())
@@ -297,6 +320,11 @@ var LogFile = /** @class */ (function () {
         }
         return true;
     };
+    LogFile.INFO = 0;
+    LogFile.WARNING = 1;
+    LogFile.ERROR = 2;
+    LogFile.CRITICAL = 3;
+    LogFile.DEBUG = 4;
     return LogFile;
 }());
 

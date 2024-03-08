@@ -22,27 +22,29 @@
 
 ```javascript
   /* default LogFileOptions 
+   * logLevel: 0 (INFO)
    * dir: "./logs"
-    fileFormat: "log-%DATE%.log"
-    logToConsole: false
-    rollover: true
-    logStr: "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
-    startLog: "-----------------------------------------\n" +
-              "------- Log Started: %DATETIME%\n" +
-              "-----------------------------------------\n";
-
-    endLog: "-----------------------------------------\n" +
-            "------- Log Ended: %DATETIME%\n" +
-            "-----------------------------------------\n";
+   * fileFormat: "log-%DATE%.log"
+   * logToConsole: false
+   * rollover: true
+   * logStr: "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
+   * startLog: "-----------------------------------------\n" +
+   *           "------- Log Started: %DATETIME%\n" +
+   *           "-----------------------------------------\n";
+   *    
+   * endLog: "-----------------------------------------\n" +
+   *         "------- Log Ended: %DATETIME%\n" +
+   *         "-----------------------------------------\n";
   */
-  const logFile = new LogFile({});
+
+  const { INFO, ERROR, WARN, CRITICAL, DEBUG } = LogFile;
+  const logFile = new LogFile({ logLevel: DEBUG });
 
   logFile.start();
 
   logFile.log("There was an error", 2);
 
   logFile.stop();
-
   /* file result 
   -----------------------------------------
   ------- Log Started: Fri, 08 Mar 2024 16:07:19 GMT
@@ -52,6 +54,37 @@
   ------- Log Ended: Fri, 08 Mar 2024 16:07:19 GMT
   -----------------------------------------
   */
+```
+
+#### LogFile Options ####
+```javascript
+  // set the log str
+  logFile.setLogStr("%DATE% %TIME% | %LEVEL% | %MESSAGE%");
+
+  // set the log dir
+  logFile.setLogDir("./logs");
+
+  // set the rollover boolean
+  logFile.setRollover(true);
+
+  // set the log level
+  logFile.setLogLevel(DEBUG);
+
+  // set the file name format
+  logFile.setFileFormat("log-%DATE%.log");
+
+  // set the log to console boolean
+  logFile.setLogToConsole(true);
+
+  // set the start log string
+  logFile.setStartLog("-----------------------------------------\n");
+
+  // set the end log string
+  logFile.setEndLog("-----------------------------------------\n");
+
+  // log help to the console
+  logFile.getHelp();
+
 ```
 # License #
 

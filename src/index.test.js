@@ -1,7 +1,8 @@
 const LogFile = require("../dist/logfile.cjs");
 const fs = require("fs"); // we're going to want to delete the file when we're done testing it
 
-const log = new LogFile({});
+const { DEBUG, WARNING } = LogFile;
+const log = new LogFile({ logLevel: DEBUG });
 
 describe("LogFile", () => {
   
@@ -22,6 +23,21 @@ describe("LogFile", () => {
     log.stop();
     const files = fs.readdirSync("./logs");
     expect(files.length).toBe(1);
+  });
+
+  it("should allow set and get dir", () => {
+    log.setLogDir("./logs2");
+    expect(log.getLogDir()).toBe("./logs2");
+  });
+
+  it("should allow set and get log level", () => {
+    log.setLogLevel(WARNING);
+    expect(log.getLogLevel()).toBe(LogFile.WARNING);
+  });
+
+  it("should allow set and get rollover", () => {
+    log.setRollover(false);
+    expect(log.getRollover()).toBe(false);
   });
 
   it("should allow setLogStr", () => {
@@ -50,7 +66,7 @@ describe("LogFile", () => {
     expect(currentFile).toBeTruthy();
     expect(lastFile).toBeTruthy();
 
-    //fs.rmdirSync("./logs", { recursive: true, force: true });
+    fs.rmdirSync("./logs", { recursive: true, force: true });
   });
 });
 
