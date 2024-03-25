@@ -90,3 +90,7 @@
 
 Published under the [GPL-3.0 license](https://github.com/mdaemon-technologies/logfile/blob/main/LICENSE "GPL-3.0 License").
 
+Published by<br/> 
+<b>MDaemon Technologies, Ltd.<br/>
+Simple Secure Email</b><br/>
+[https://www.mdaemon.com](https://www.mdaemon.com)
