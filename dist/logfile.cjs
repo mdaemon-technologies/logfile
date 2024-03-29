@@ -9,6 +9,10 @@ function getTime() {
     return new Date().toISOString().slice(11, 19);
 }
 /**
+ * Appends a newline to the end of the given string if one does not exist.
+ */
+var endWithNewLine = function (str) { return str.endsWith("\n") ? str : str + "\n"; };
+/**
  * LogFile class to handle writing log messages to file.
  *
  * @param options - Options for configuring the log file.
@@ -63,9 +67,9 @@ var LogFile = /** @class */ (function () {
         }
         this.date = getDate();
         if (this.rollover) {
-            fs.appendFileSync(this.file(), this.endLog.replace("%DATETIME%", new Date().toUTCString()));
+            fs.appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
             this.currentFile = this.fileFormat.replace("%DATE%", this.date);
-            fs.writeFileSync(this.file(), this.startLog.replace("%DATETIME%", new Date().toUTCString()));
+            fs.writeFileSync(this.file(), endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString())));
             this.pushLogs();
         }
     };
@@ -76,7 +80,7 @@ var LogFile = /** @class */ (function () {
    */
     LogFile.prototype.pushLogs = function () {
         if (this.logs.length > 0 && !!this.currentFile) {
-            fs.appendFileSync(this.file(), this.logs.join("\n"));
+            fs.appendFileSync(this.file(), this.logs.join("\n") + "\n");
             this.logs = [];
         }
     };
@@ -283,8 +287,12 @@ var LogFile = /** @class */ (function () {
             fs.mkdirSync(this.dir);
         }
         this.currentFile = this.fileFormat.replace("%DATE%", getDate());
+        var start = endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString()));
         if (!fs.existsSync(this.file())) {
-            fs.writeFileSync(this.file(), this.startLog.replace("%DATETIME%", new Date().toUTCString()));
+            fs.writeFileSync(this.file(), start);
+        }
+        else {
+            fs.appendFileSync(this.file(), start);
         }
         this.date = getDate();
         this.pushInterval = setInterval(this.pushLogs.bind(this), 1000);
@@ -307,7 +315,7 @@ var LogFile = /** @class */ (function () {
         }
         try {
             this.pushLogs();
-            fs.appendFileSync(this.file(), this.endLog.replace("%DATETIME%", new Date().toUTCString()));
+            fs.appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
             if (this.pushInterval) {
                 clearInterval(this.pushInterval);
             }
@@ -342,7 +350,7 @@ var LogFile = /** @class */ (function () {
                 .replace("%DATE%", getDate())
                 .replace("%TIME%", getTime())
                 .replace("%LEVEL%", this.logLevelToString(level))
-                .replace("%MESSAGE%", message);
+                .replace("%MESSAGE%", message.replace(/\n|\r|\t/g, ""));
             this.logs.push(logThis);
             if (this.logToConsole) {
                 console.log(logThis);

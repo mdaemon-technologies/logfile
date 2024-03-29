@@ -31,6 +31,11 @@ interface LogFileOptions {
 }
 
 /**
+ * Appends a newline to the end of the given string if one does not exist.
+ */
+const endWithNewLine = (str: string) => str.endsWith("\n") ? str : str + "\n";
+
+/**
  * LogFile class to handle writing log messages to file.
  *
  * @param options - Options for configuring the log file.
@@ -100,9 +105,9 @@ class LogFile {
 
     this.date = getDate();
     if (this.rollover) {
-      appendFileSync(this.file(), this.endLog.replace("%DATETIME%", new Date().toUTCString()));
+      appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
       this.currentFile = this.fileFormat.replace("%DATE%", this.date);
-      writeFileSync(this.file(), this.startLog.replace("%DATETIME%", new Date().toUTCString()));
+      writeFileSync(this.file(), endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString())));
       this.pushLogs();
     }
   }
@@ -114,7 +119,7 @@ class LogFile {
  */
   private pushLogs(): undefined {
     if (this.logs.length > 0 && !!this.currentFile) {
-      appendFileSync(this.file(), this.logs.join("\n"));
+      appendFileSync(this.file(), this.logs.join("\n") + "\n");
       this.logs = [];
     }
   }
@@ -347,8 +352,12 @@ class LogFile {
 
     this.currentFile = this.fileFormat.replace("%DATE%", getDate());
 
+    let start = endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString()))
     if (!existsSync(this.file())) {
-      writeFileSync(this.file(), this.startLog.replace("%DATETIME%", new Date().toUTCString()));
+      writeFileSync(this.file(), start);
+    }
+    else {
+      appendFileSync(this.file(), start);
     }
 
     this.date = getDate();
@@ -377,7 +386,7 @@ class LogFile {
 
     try {
       this.pushLogs();
-      appendFileSync(this.file(), this.endLog.replace("%DATETIME%", new Date().toUTCString()));
+      appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
 
       if (this.pushInterval) {
         clearInterval(this.pushInterval);
@@ -417,7 +426,7 @@ class LogFile {
         .replace("%DATE%", getDate())
         .replace("%TIME%", getTime())
         .replace("%LEVEL%", this.logLevelToString(level))
-        .replace("%MESSAGE%", message);
+        .replace("%MESSAGE%", message.replace(/\n|\r|\t/g, ""));
 
       this.logs.push(logThis);
 
