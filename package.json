@@ -23,7 +23,11 @@
   "keywords": [
     "logging",
     "logfile",
-    "node"
+    "node",
+    "log to file",
+    "log",
+    "debug log",
+    "fs"
   ],
   "author": {
     "name": "MDaemon Technologies, Ltd.",
