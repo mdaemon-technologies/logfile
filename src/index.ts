@@ -1,10 +1,10 @@
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 
-function getDate() {
+function getDate() : string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function getTime() {
+function getTime() : string {
   return new Date().toISOString().slice(11, 19);
 }
 

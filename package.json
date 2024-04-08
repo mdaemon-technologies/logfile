@@ -1,6 +1,6 @@
 {
   "name": "@mdaemon/logfile",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "A node logging utility",
   "type": "module",
   "main": "dist/logfile.cjs",
