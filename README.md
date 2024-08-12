@@ -13,7 +13,7 @@
     const LogFile = require("@mdaemon/logfile/dist/logfile.cjs");
 ```
 
-# Node Modlues #
+# Node Modules #
 ```javascript
     import LogFile from "@mdaemon/logfile/dist/logfile.mjs";
 ```
