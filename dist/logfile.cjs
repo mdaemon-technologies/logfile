@@ -29,18 +29,54 @@ var endWithNewLine = function (str) { return str.endsWith("\n") ? str : str + "\
  */
 var LogFile = /** @class */ (function () {
     function LogFile(options) {
+        var _this = this;
         this.date = "";
         this.currentFile = "";
         this.logs = [];
         this.logToConsole = false;
         this.logLevel = 0;
+        /**
+       * Rollover to a new log file if the date has changed.
+       *
+       * Check if the current date is different than the stored date.
+       * If so, update the stored date.
+       *
+       * If rollover is enabled:
+       * - Append the end log message to the current log file.
+       * - Generate the new log file name with the updated date.
+       * - Write the start log message to the new file.
+       * - Push any buffered logs to the new file.
+       */
+        this.rollOver = function () {
+            if (getDate() === _this.date) {
+                return;
+            }
+            _this.date = getDate();
+            if (_this.rolloverEnabled) {
+                fs.appendFileSync(_this.file(), endWithNewLine(_this.endLog.replace("%DATETIME%", new Date().toUTCString())));
+                _this.currentFile = _this.fileFormat.replace("%DATE%", _this.date);
+                fs.writeFileSync(_this.file(), endWithNewLine(_this.startLog.replace("%DATETIME%", new Date().toUTCString())));
+                _this.pushLogs();
+            }
+        };
+        /**
+       * If there are logs buffered in memory, write them
+       * to the current log file. Clear the buffer after
+       * writing.
+       */
+        this.pushLogs = function () {
+            if (_this.logs.length > 0 && !!_this.currentFile) {
+                fs.appendFileSync(_this.file(), _this.logs.join("\n") + "\n");
+                _this.logs = [];
+            }
+        };
         this.pushInterval = null;
         this.rolloverInterval = null;
         this.logLevel = options.logLevel || LogFile.INFO;
         this.dir = options.dir || "./logs";
         this.fileFormat = options.fileFormat || "log-%DATE%.log";
         this.logToConsole = options.logToConsole || false;
-        this.rollover = typeof options.rollover !== "undefined" ? options.rollover : true;
+        this.rolloverEnabled = typeof options.rollover !== "undefined" ? options.rollover : true;
         this.logStr = options.logStr || "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
         this.startLog = options.startLog || "-----------------------------------------\n" +
             "------- Log Started: %DATETIME%\n" +
@@ -49,41 +85,6 @@ var LogFile = /** @class */ (function () {
             "------- Log Ended: %DATETIME%\n" +
             "-----------------------------------------\n";
     }
-    /**
-   * Rollover to a new log file if the date has changed.
-   *
-   * Check if the current date is different than the stored date.
-   * If so, update the stored date.
-   *
-   * If rollover is enabled:
-   * - Append the end log message to the current log file.
-   * - Generate the new log file name with the updated date.
-   * - Write the start log message to the new file.
-   * - Push any buffered logs to the new file.
-   */
-    LogFile.prototype.rollOver = function () {
-        if (getDate() === this.date) {
-            return;
-        }
-        this.date = getDate();
-        if (this.rollover) {
-            fs.appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
-            this.currentFile = this.fileFormat.replace("%DATE%", this.date);
-            fs.writeFileSync(this.file(), endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString())));
-            this.pushLogs();
-        }
-    };
-    /**
-   * If there are logs buffered in memory, write them
-   * to the current log file. Clear the buffer after
-   * writing.
-   */
-    LogFile.prototype.pushLogs = function () {
-        if (this.logs.length > 0 && !!this.currentFile) {
-            fs.appendFileSync(this.file(), this.logs.join("\n") + "\n");
-            this.logs = [];
-        }
-    };
     /**
    * Converts a numeric log level to a string representation.
    *
@@ -229,7 +230,7 @@ var LogFile = /** @class */ (function () {
    * @param rollover Whether to enable log rollover.
    */
     LogFile.prototype.setRollover = function (rollover) {
-        this.rollover = rollover;
+        this.rolloverEnabled = rollover;
     };
     /**
    * Gets whether log rollover is enabled when the maximum log size is reached.
@@ -237,7 +238,7 @@ var LogFile = /** @class */ (function () {
    * @returns True if log rollover is enabled, false otherwise.
    */
     LogFile.prototype.getRollover = function () {
-        return this.rollover;
+        return this.rolloverEnabled;
     };
     /**
    * Logs help information to the console about log levels, log string macros,
@@ -295,9 +296,9 @@ var LogFile = /** @class */ (function () {
             fs.appendFileSync(this.file(), start);
         }
         this.date = getDate();
-        this.pushInterval = setInterval(this.pushLogs.bind(this), 1000);
-        if (this.rollover) {
-            this.rolloverInterval = setInterval(this.rollOver.bind(this), 5000);
+        this.pushInterval = setInterval(this.pushLogs, 1000);
+        if (this.rolloverEnabled) {
+            this.rolloverInterval = setInterval(this.rollOver, 5000);
         }
         return fs.existsSync(this.file());
     };

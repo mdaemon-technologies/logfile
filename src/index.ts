@@ -60,7 +60,7 @@ class LogFile {
   private logStr: string;
   private startLog: string;
   private endLog: string;
-  private rollover: boolean;
+  private rolloverEnabled: boolean;
   private logToConsole: boolean = false;
   private logLevel: number = 0;
 
@@ -75,7 +75,7 @@ class LogFile {
     this.dir = options.dir || "./logs";
     this.fileFormat = options.fileFormat || "log-%DATE%.log";
     this.logToConsole = options.logToConsole || false;
-    this.rollover = typeof options.rollover !== "undefined" ? options.rollover : true;
+    this.rolloverEnabled = typeof options.rollover !== "undefined" ? options.rollover : true;
     this.logStr = options.logStr || "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
     this.startLog = options.startLog || "-----------------------------------------\n" +
       "------- Log Started: %DATETIME%\n" +
@@ -98,13 +98,13 @@ class LogFile {
  * - Write the start log message to the new file.
  * - Push any buffered logs to the new file.
  */
-  private rollOver(): undefined {
+  private rollOver = (): void => {
     if (getDate() === this.date) {
       return;
     }
 
     this.date = getDate();
-    if (this.rollover) {
+    if (this.rolloverEnabled) {
       appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
       this.currentFile = this.fileFormat.replace("%DATE%", this.date);
       writeFileSync(this.file(), endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString())));
@@ -117,7 +117,7 @@ class LogFile {
  * to the current log file. Clear the buffer after
  * writing.
  */
-  private pushLogs(): undefined {
+  private pushLogs = (): void => {
     if (this.logs.length > 0 && !!this.currentFile) {
       appendFileSync(this.file(), this.logs.join("\n") + "\n");
       this.logs = [];
@@ -157,7 +157,7 @@ class LogFile {
  *
  * @param level - The numeric log level to set.
  */
-  setLogLevel(level: number): undefined {
+  setLogLevel(level: number): void {
     this.logLevel = level;
   }
 
@@ -175,7 +175,7 @@ class LogFile {
  * 
  * @param dir - The path to the log directory.
  */
-  setLogDir(dir: string): undefined {
+  setLogDir(dir: string): void {
     this.dir = dir;
   }
 
@@ -193,7 +193,7 @@ class LogFile {
  * 
  * @param fileFormat - The file name format
  */
-  setFileFormat(fileFormat: string): undefined {
+  setFileFormat(fileFormat: string): void {
     this.fileFormat = fileFormat;
   }
 
@@ -211,7 +211,7 @@ class LogFile {
  *
  * @param logToConsole - Whether logging should be enabled on the console.
  */
-  setLogToConsole(logToConsole: boolean): undefined {
+  setLogToConsole(logToConsole: boolean): void {
     this.logToConsole = logToConsole;
   }
 
@@ -229,7 +229,7 @@ class LogFile {
  * 
  * @param logStr The log string template.
  */
-  setLogStr(logStr: string): undefined {
+  setLogStr(logStr: string): void {
     this.logStr = logStr;
   }
 
@@ -247,7 +247,7 @@ class LogFile {
  * 
  * @param startLog The start log message. 
  */
-  setStartLog(startLog: string): undefined {
+  setStartLog(startLog: string): void {
     this.startLog = startLog;
   }
 
@@ -265,7 +265,7 @@ class LogFile {
  * 
  * @param endLog The end log message.
  */
-  setEndLog(endLog: string): undefined {
+  setEndLog(endLog: string): void {
     this.endLog = endLog;
   }
 
@@ -283,8 +283,8 @@ class LogFile {
  * 
  * @param rollover Whether to enable log rollover.
  */
-  setRollover(rollover: boolean): undefined {
-    this.rollover = rollover;
+  setRollover(rollover: boolean): void {
+    this.rolloverEnabled = rollover;
   }
 
   /**
@@ -293,14 +293,14 @@ class LogFile {
  * @returns True if log rollover is enabled, false otherwise.
  */
   getRollover(): boolean {
-    return this.rollover;
+    return this.rolloverEnabled;
   }
 
   /**
  * Logs help information to the console about log levels, log string macros, 
  * and the default log directory.
  */
-  getHelp(): undefined {
+  getHelp(): void {
     console.log("Log Levels: \n" +
       "0: Info\n" +
       "1: Warning\n" +
@@ -361,10 +361,10 @@ class LogFile {
     }
 
     this.date = getDate();
-    this.pushInterval = setInterval(this.pushLogs.bind(this), 1000);
+    this.pushInterval = setInterval(this.pushLogs, 1000);
 
-    if (this.rollover) {
-      this.rolloverInterval = setInterval(this.rollOver.bind(this), 5000);
+    if (this.rolloverEnabled) {
+      this.rolloverInterval = setInterval(this.rollOver, 5000);
     }
 
     return existsSync(this.file());
