@@ -1,6 +1,6 @@
 {
   "name": "@mdaemon/logfile",
-  "version": "2.1.3",
+  "version": "2.2.0",
   "description": "A node logging utility",
   "type": "module",
   "main": "dist/logfile.cjs",
@@ -34,7 +34,7 @@
     "email": "jonathan.ehman@mdaemon.com",
     "url": "https://www.mdaemon.com"
   },
-  "license": "GPL-3.0",
+  "license": "LGPL-2.1",
   "bugs": {
     "url": "https://github.com/mdaemon-technologies/logfile/issues"
   },
