@@ -35,6 +35,18 @@ interface LogFileOptions {
  */
 const endWithNewLine = (str: string) => str.endsWith("\n") ? str : str + "\n";
 
+const stringifyArgs = arg => {
+  if (arg instanceof Error) {
+    return arg.stack;
+  }
+  
+  if (arg instanceof Object) {
+    return JSON.stringify(arg);
+  }
+  
+  return arg;
+};
+
 /**
  * LogFile class to handle writing log messages to file.
  *
@@ -54,6 +66,7 @@ class LogFile {
 
   private date: string = "";
   private currentFile: string = "";
+  private previousFile: string = "";
   private logs: string[] = [];
   private dir: string;
   private fileFormat: string;
@@ -106,6 +119,7 @@ class LogFile {
     this.date = getDate();
     if (this.rolloverEnabled) {
       appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
+      this.previousFile = this.currentFile;
       this.currentFile = this.fileFormat.replace("%DATE%", this.date);
       writeFileSync(this.file(), endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString())));
       this.pushLogs();
@@ -331,7 +345,7 @@ class LogFile {
  * @returns The path to the log file from the previous date.
  */
   lastFile(): string {
-    return this.dir + "/" + this.fileFormat.replace("%DATE%", getDate());
+    return this.dir + "/" + this.previousFile;
   }
 
   private pushInterval: NodeJS.Timeout | null = null;
@@ -347,7 +361,7 @@ class LogFile {
  */
   start(): boolean {
     if (!existsSync(this.dir)) {
-      mkdirSync(this.dir);
+      mkdirSync(this.dir, { recursive: true });
     }
 
     this.currentFile = this.fileFormat.replace("%DATE%", getDate());
@@ -376,6 +390,16 @@ class LogFile {
  * @returns True if the logger was stopped successfully, false otherwise.
  */
   stop(): boolean {
+    if (this.pushInterval) {
+      clearInterval(this.pushInterval);
+      this.pushInterval = null;
+    }
+
+    if (this.rolloverInterval) {
+      clearInterval(this.rolloverInterval);
+      this.rolloverInterval = null;
+    }
+
     if (!existsSync(this.dir)) {
       return true;
     }
@@ -385,18 +409,12 @@ class LogFile {
     }
 
     try {
+      
       this.pushLogs();
-      appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
-
-      if (this.pushInterval) {
-        clearInterval(this.pushInterval);
-      }
-
-      if (this.rolloverInterval) {
-        clearInterval(this.rolloverInterval);
-      }
+      appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())))
 
       this.currentFile = "";
+
     } catch (ex) {
       return false;
     }
@@ -441,6 +459,56 @@ class LogFile {
     }
 
     return true;
+  }
+
+  /**
+   * Logs an info message.
+   * @param {...any} args - The arguments to be logged.
+   * @returns {boolean} True if the log was successful, false otherwise.
+   */
+  info(...args: any[]): boolean {
+    args = args.map(stringifyArgs);
+    return this.log(args.join(" "), LogFile.INFO);
+  }
+
+  /**
+   * Logs a warning message.
+   * @param {...any} args - The arguments to be logged.
+   * @returns {boolean} True if the log was successful, false otherwise.
+   */
+  warning(...args: any[]): boolean {
+    args = args.map(stringifyArgs);
+    return this.log(args.join(" "), LogFile.WARNING);
+  }
+
+  /**
+   * Logs an error message.
+   * @param {...any} args - The arguments to be logged.
+   * @returns {boolean} True if the log was successful, false otherwise.
+   */
+  error(...args: any[]): boolean {
+    args = args.map(stringifyArgs);
+    return this.log(args.join(" "), LogFile.ERROR);
+  }
+
+  /**
+   * Logs a critical message.
+   * @param {...any} args - The arguments to be logged.
+   * @returns {boolean} True if the log was successful, false otherwise.
+   */
+  critical(...args: any[]): boolean {
+    args = args.map(stringifyArgs);
+    return this.log(args.join(" "), LogFile.CRITICAL);
+  }
+
+  /**
+   * Logs a debug message.
+   * @param {...any} args - The arguments to be logged.
+   * @returns {boolean} True if the log was successful, false otherwise.
+   */
+  debug(...args: any[]): boolean {
+    args = args.map(stringifyArgs);
+    return this.log(args.join(" "), LogFile.DEBUG);
   }
 }
 

@@ -12,6 +12,15 @@ function getTime() {
  * Appends a newline to the end of the given string if one does not exist.
  */
 var endWithNewLine = function (str) { return str.endsWith("\n") ? str : str + "\n"; };
+var stringifyArgs = function (arg) {
+    if (arg instanceof Error) {
+        return arg.stack;
+    }
+    if (arg instanceof Object) {
+        return JSON.stringify(arg);
+    }
+    return arg;
+};
 /**
  * LogFile class to handle writing log messages to file.
  *
@@ -32,6 +41,7 @@ var LogFile = /** @class */ (function () {
         var _this = this;
         this.date = "";
         this.currentFile = "";
+        this.previousFile = "";
         this.logs = [];
         this.logToConsole = false;
         this.logLevel = 0;
@@ -54,6 +64,7 @@ var LogFile = /** @class */ (function () {
             _this.date = getDate();
             if (_this.rolloverEnabled) {
                 fs.appendFileSync(_this.file(), endWithNewLine(_this.endLog.replace("%DATETIME%", new Date().toUTCString())));
+                _this.previousFile = _this.currentFile;
                 _this.currentFile = _this.fileFormat.replace("%DATE%", _this.date);
                 fs.writeFileSync(_this.file(), endWithNewLine(_this.startLog.replace("%DATETIME%", new Date().toUTCString())));
                 _this.pushLogs();
@@ -273,7 +284,7 @@ var LogFile = /** @class */ (function () {
    * @returns The path to the log file from the previous date.
    */
     LogFile.prototype.lastFile = function () {
-        return this.dir + "/" + this.fileFormat.replace("%DATE%", getDate());
+        return this.dir + "/" + this.previousFile;
     };
     /**
    * Starts the logger by initializing the log directory and files.
@@ -285,7 +296,7 @@ var LogFile = /** @class */ (function () {
    */
     LogFile.prototype.start = function () {
         if (!fs.existsSync(this.dir)) {
-            fs.mkdirSync(this.dir);
+            fs.mkdirSync(this.dir, { recursive: true });
         }
         this.currentFile = this.fileFormat.replace("%DATE%", getDate());
         var start = endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString()));
@@ -308,6 +319,14 @@ var LogFile = /** @class */ (function () {
    * @returns True if the logger was stopped successfully, false otherwise.
    */
     LogFile.prototype.stop = function () {
+        if (this.pushInterval) {
+            clearInterval(this.pushInterval);
+            this.pushInterval = null;
+        }
+        if (this.rolloverInterval) {
+            clearInterval(this.rolloverInterval);
+            this.rolloverInterval = null;
+        }
         if (!fs.existsSync(this.dir)) {
             return true;
         }
@@ -317,12 +336,6 @@ var LogFile = /** @class */ (function () {
         try {
             this.pushLogs();
             fs.appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
-            if (this.pushInterval) {
-                clearInterval(this.pushInterval);
-            }
-            if (this.rolloverInterval) {
-                clearInterval(this.rolloverInterval);
-            }
             this.currentFile = "";
         }
         catch (ex) {
@@ -362,6 +375,71 @@ var LogFile = /** @class */ (function () {
             return false;
         }
         return true;
+    };
+    /**
+     * Logs an info message.
+     * @param {...any} args - The arguments to be logged.
+     * @returns {boolean} True if the log was successful, false otherwise.
+     */
+    LogFile.prototype.info = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        args = args.map(stringifyArgs);
+        return this.log(args.join(" "), LogFile.INFO);
+    };
+    /**
+     * Logs a warning message.
+     * @param {...any} args - The arguments to be logged.
+     * @returns {boolean} True if the log was successful, false otherwise.
+     */
+    LogFile.prototype.warning = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        args = args.map(stringifyArgs);
+        return this.log(args.join(" "), LogFile.WARNING);
+    };
+    /**
+     * Logs an error message.
+     * @param {...any} args - The arguments to be logged.
+     * @returns {boolean} True if the log was successful, false otherwise.
+     */
+    LogFile.prototype.error = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        args = args.map(stringifyArgs);
+        return this.log(args.join(" "), LogFile.ERROR);
+    };
+    /**
+     * Logs a critical message.
+     * @param {...any} args - The arguments to be logged.
+     * @returns {boolean} True if the log was successful, false otherwise.
+     */
+    LogFile.prototype.critical = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        args = args.map(stringifyArgs);
+        return this.log(args.join(" "), LogFile.CRITICAL);
+    };
+    /**
+     * Logs a debug message.
+     * @param {...any} args - The arguments to be logged.
+     * @returns {boolean} True if the log was successful, false otherwise.
+     */
+    LogFile.prototype.debug = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        args = args.map(stringifyArgs);
+        return this.log(args.join(" "), LogFile.DEBUG);
     };
     LogFile.INFO = 0;
     LogFile.WARNING = 1;

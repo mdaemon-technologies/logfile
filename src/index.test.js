@@ -5,7 +5,21 @@ const { DEBUG, WARNING } = LogFile;
 const log = new LogFile({ logLevel: DEBUG });
 
 describe("LogFile", () => {
-  
+  beforeAll(() => {
+    logFile = new LogFile({ logLevel: LogFile.DEBUG });
+    logFile.start();
+  });
+
+  afterAll(() => {
+    logFile.stop();
+    if (fs.existsSync("./logs")) {
+      fs.rmdirSync("./logs", { recursive: true, force: true });
+    }
+    if (fs.existsSync("./logs2")) {
+      fs.rmdirSync("./logs2", { recursive: true, force: true });
+    }
+  });
+
   it("should start and stop", () => {
     log.start();
     log.stop();
@@ -68,5 +82,54 @@ describe("LogFile", () => {
 
     fs.rmdirSync("./logs", { recursive: true, force: true });
   });
-});
 
+  test('info method logs at INFO level', () => {
+    const spy = jest.spyOn(logFile, 'log');
+    logFile.info('Test info message');
+    expect(spy).toHaveBeenCalledWith('Test info message', LogFile.INFO);
+  });
+
+  test('warning method logs at WARNING level', () => {
+    const spy = jest.spyOn(logFile, 'log');
+    logFile.warning('Test warning message');
+    expect(spy).toHaveBeenCalledWith('Test warning message', LogFile.WARNING);
+  });
+
+  test('error method logs at ERROR level', () => {
+    const spy = jest.spyOn(logFile, 'log');
+    logFile.error('Test error message');
+    expect(spy).toHaveBeenCalledWith('Test error message', LogFile.ERROR);
+  });
+
+  test('critical method logs at CRITICAL level', () => {
+    const spy = jest.spyOn(logFile, 'log');
+    logFile.critical('Test critical message');
+    expect(spy).toHaveBeenCalledWith('Test critical message', LogFile.CRITICAL);
+  });
+
+  test('debug method logs at DEBUG level', () => {
+    const spy = jest.spyOn(logFile, 'log');
+    logFile.debug('Test debug message');
+    expect(spy).toHaveBeenCalledWith('Test debug message', LogFile.DEBUG);
+  });
+
+  test('methods handle multiple arguments', () => {
+    const spy = jest.spyOn(logFile, 'log');
+    logFile.info('Test', 'multiple', 'arguments');
+    expect(spy).toHaveBeenCalledWith('Test multiple arguments', LogFile.INFO);
+  });
+
+  test('methods handle object arguments', () => {
+    const spy = jest.spyOn(logFile, 'log');
+    const testObj = { key: 'value' };
+    logFile.info('Test object:', testObj);
+    expect(spy).toHaveBeenCalledWith('Test object: {"key":"value"}', LogFile.INFO);
+  });
+
+  test('methods handle Error objects', () => {
+    const spy = jest.spyOn(logFile, 'log');
+    const testError = new Error('Test error');
+    logFile.error('An error occurred:', testError);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('An error occurred: Error: Test error'), LogFile.ERROR);
+  });
+});

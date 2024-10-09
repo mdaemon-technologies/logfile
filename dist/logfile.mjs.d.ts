@@ -1,0 +1,1 @@
+declare module '@mdaemon/logfile/dist/logfile.mjs'

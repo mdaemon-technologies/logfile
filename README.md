@@ -85,10 +85,25 @@
   // log help to the console
   logFile.getHelp();
 
+  // log to info
+  logFile.info("This is an info log");
+
+  // log to warn
+  logFile.warn("This is a warn log");
+
+  // log to error
+  logFile.error("This is an error log");
+
+  // log to critical
+  logFile.critical("This is a critical log");
+
+  // log to debug
+  logFile.debug("This is a debug log");
+
 ```
 # License #
 
-Published under the [GPL-3.0 license](https://github.com/mdaemon-technologies/logfile/blob/main/LICENSE "GPL-3.0 License").
+Published under the [LGPL-2.1 license](https://github.com/mdaemon-technologies/logfile/blob/main/LICENSE "LGPL-2.1 License").
 
 Published by<br/> 
 <b>MDaemon Technologies, Ltd.<br/>
