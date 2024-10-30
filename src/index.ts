@@ -77,11 +77,11 @@ class LogFile {
   private logToConsole: boolean = false;
   private logLevel: number = 0;
 
-  static INFO : number = 0;
-  static WARNING : number = 1;
-  static ERROR : number = 2;
-  static CRITICAL : number = 3;
-  static DEBUG : number = 4;
+  static DEBUG : number = 0;
+  static INFO : number = 1;
+  static WARNING : number = 2;
+  static ERROR : number = 3;
+  static CRITICAL : number = 4;
 
   constructor(options: LogFileOptions) {
     this.logLevel = options.logLevel || LogFile.INFO;
@@ -148,19 +148,19 @@ class LogFile {
     let levelStr = "";
     switch (level) {
       case 0:
-        levelStr = "INFO";
+        levelStr = "DEBUG";
         break;
       case 1:
-        levelStr = "WARNING";
+        levelStr = "INFO";
         break;
       case 2:
-        levelStr = "ERROR";
+        levelStr = "WARNING";
         break;
       case 3:
-        levelStr = "CRITICAL";
+        levelStr = "ERROR";
         break;
       case 4:
-        levelStr = "DEBUG";
+        levelStr = "CRITICAL";
         break;
     }
     return levelStr;
@@ -316,11 +316,11 @@ class LogFile {
  */
   getHelp(): void {
     console.log("Log Levels: \n" +
-      "0: Info\n" +
-      "1: Warning\n" +
-      "2: Error\n" +
-      "3: Critical\n" +
-      "4: Debug\n");
+      "0: Debug\n" +
+      "1: Info\n" +
+      "2: Warning\n" +
+      "3: Error\n" +
+      "4: Critical\n");
     console.log("Log String Macros: \n" +
       "%DATETIME%: Date and Time\n" +
       "%DATE%: Date\n" +
@@ -435,7 +435,7 @@ class LogFile {
         this.start();
       }
 
-      if (this.logLevel < level) {
+      if (level < this.logLevel) {
         this.rollOver();
         return true;
       }

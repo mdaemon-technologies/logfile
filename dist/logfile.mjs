@@ -104,19 +104,19 @@ var LogFile = /** @class */ (function () {
         var levelStr = "";
         switch (level) {
             case 0:
-                levelStr = "INFO";
+                levelStr = "DEBUG";
                 break;
             case 1:
-                levelStr = "WARNING";
+                levelStr = "INFO";
                 break;
             case 2:
-                levelStr = "ERROR";
+                levelStr = "WARNING";
                 break;
             case 3:
-                levelStr = "CRITICAL";
+                levelStr = "ERROR";
                 break;
             case 4:
-                levelStr = "DEBUG";
+                levelStr = "CRITICAL";
                 break;
         }
         return levelStr;
@@ -255,11 +255,11 @@ var LogFile = /** @class */ (function () {
    */
     LogFile.prototype.getHelp = function () {
         console.log("Log Levels: \n" +
-            "0: Info\n" +
-            "1: Warning\n" +
-            "2: Error\n" +
-            "3: Critical\n" +
-            "4: Debug\n");
+            "0: Debug\n" +
+            "1: Info\n" +
+            "2: Warning\n" +
+            "3: Error\n" +
+            "4: Critical\n");
         console.log("Log String Macros: \n" +
             "%DATETIME%: Date and Time\n" +
             "%DATE%: Date\n" +
@@ -354,7 +354,7 @@ var LogFile = /** @class */ (function () {
             if (!this.currentFile) {
                 this.start();
             }
-            if (this.logLevel < level) {
+            if (level < this.logLevel) {
                 this.rollOver();
                 return true;
             }
@@ -439,11 +439,11 @@ var LogFile = /** @class */ (function () {
         args = args.map(stringifyArgs);
         return this.log(args.join(" "), LogFile.DEBUG);
     };
-    LogFile.INFO = 0;
-    LogFile.WARNING = 1;
-    LogFile.ERROR = 2;
-    LogFile.CRITICAL = 3;
-    LogFile.DEBUG = 4;
+    LogFile.DEBUG = 0;
+    LogFile.INFO = 1;
+    LogFile.WARNING = 2;
+    LogFile.ERROR = 3;
+    LogFile.CRITICAL = 4;
     return LogFile;
 }());
 
