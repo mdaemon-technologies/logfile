@@ -3,10 +3,15 @@
 var fs = require('fs');
 
 function getDate() {
-    return new Date().toISOString().slice(0, 10);
+    var date = new Date();
+    return "".concat(date.getFullYear(), "-").concat(date.getMonth() + 1, "-").concat(date.getDate());
 }
 function getTime() {
-    return new Date().toISOString().slice(11, 19);
+    return new Date().toTimeString().substring(0, 8);
+}
+function getDateTime() {
+    var date = new Date();
+    return "".concat(date.getFullYear(), "-").concat(date.getMonth() + 1, "-").concat(date.getDate(), " ").concat(date.toTimeString().substring(0, 8));
 }
 /**
  * Appends a newline to the end of the given string if one does not exist.
@@ -45,6 +50,7 @@ var LogFile = /** @class */ (function () {
         this.logs = [];
         this.logToConsole = false;
         this.logLevel = 0;
+        this.useServerTime = true;
         /**
        * Rollover to a new log file if the date has changed.
        *
@@ -63,10 +69,10 @@ var LogFile = /** @class */ (function () {
             }
             _this.date = getDate();
             if (_this.rolloverEnabled) {
-                fs.appendFileSync(_this.file(), endWithNewLine(_this.endLog.replace("%DATETIME%", new Date().toUTCString())));
+                fs.appendFileSync(_this.file(), endWithNewLine(_this.endLog.replace("%DATETIME%", _this.useServerTime ? new Date().toString() : new Date().toUTCString())));
                 _this.previousFile = _this.currentFile;
                 _this.currentFile = _this.fileFormat.replace("%DATE%", _this.date);
-                fs.writeFileSync(_this.file(), endWithNewLine(_this.startLog.replace("%DATETIME%", new Date().toUTCString())));
+                fs.writeFileSync(_this.file(), endWithNewLine(_this.startLog.replace("%DATETIME%", _this.useServerTime ? new Date().toString() : new Date().toUTCString())));
                 _this.pushLogs();
             }
         };
@@ -252,6 +258,14 @@ var LogFile = /** @class */ (function () {
         return this.rolloverEnabled;
     };
     /**
+     * Sets whether to enable useServerTime
+     *
+     * @param useServerTime Whether to enable useServerTime.
+     */
+    LogFile.prototype.setUseServerTime = function (useServerTime) {
+        this.useServerTime = useServerTime;
+    };
+    /**
    * Logs help information to the console about log levels, log string macros,
    * and the default log directory.
    */
@@ -298,15 +312,15 @@ var LogFile = /** @class */ (function () {
         if (!fs.existsSync(this.dir)) {
             fs.mkdirSync(this.dir, { recursive: true });
         }
-        this.currentFile = this.fileFormat.replace("%DATE%", getDate());
-        var start = endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString()));
+        this.date = this.useServerTime ? getDate() : new Date().toISOString().substring(0, 10);
+        this.currentFile = this.fileFormat.replace("%DATE%", this.date);
+        var start = endWithNewLine(this.startLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString()));
         if (!fs.existsSync(this.file())) {
             fs.writeFileSync(this.file(), start);
         }
         else {
             fs.appendFileSync(this.file(), start);
         }
-        this.date = getDate();
         this.pushInterval = setInterval(this.pushLogs, 1000);
         if (this.rolloverEnabled) {
             this.rolloverInterval = setInterval(this.rollOver, 5000);
@@ -335,7 +349,7 @@ var LogFile = /** @class */ (function () {
         }
         try {
             this.pushLogs();
-            fs.appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
+            fs.appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())));
             this.currentFile = "";
         }
         catch (ex) {
@@ -360,7 +374,7 @@ var LogFile = /** @class */ (function () {
                 this.rollOver();
                 return true;
             }
-            var logThis = this.logStr.replace("%DATETIME%", "".concat(getDate(), " ").concat(getTime()))
+            var logThis = this.logStr.replace("%DATETIME%", "".concat(getDateTime()))
                 .replace("%DATE%", getDate())
                 .replace("%TIME%", getTime())
                 .replace("%LEVEL%", this.logLevelToString(level))

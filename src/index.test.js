@@ -162,5 +162,6 @@ describe("LogFile", () => {
     expect(logContent).not.toContain('Error message');
     expect(logContent).toContain('CRITICAL | Critical message');
   });
+  
 });
 

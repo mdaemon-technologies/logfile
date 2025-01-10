@@ -20,6 +20,7 @@
 
 ### LogFile ###
 
+#### LogFile Initialization Options ####
 ```javascript
   /* default LogFileOptions 
    * logLevel: 0 (INFO)
@@ -27,6 +28,7 @@
    * fileFormat: "log-%DATE%.log"
    * logToConsole: false
    * rollover: true
+   * useServerTime: true
    * logStr: "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
    * startLog: "-----------------------------------------\n" +
    *           "------- Log Started: %DATETIME%\n" +
@@ -36,7 +38,9 @@
    *         "------- Log Ended: %DATETIME%\n" +
    *         "-----------------------------------------\n";
   */
-
+```
+#### LogFile Example ####
+```javascript
   const { INFO, ERROR, WARN, CRITICAL, DEBUG } = LogFile;
   const logFile = new LogFile({ logLevel: DEBUG });
 
@@ -101,6 +105,30 @@
   logFile.debug("This is a debug log");
 
 ```
+
+#### LogFile Methods ####
+
+### Configuration Methods
+- `setLogStr(format)` - Set the log entry format string
+- `setLogDir(path)` - Set the directory for log files
+- `setRollover(boolean)` - Enable/disable daily log file rollover
+- `setLogLevel(level)` - Set the minimum log level
+- `setFileFormat(format)` - Set the log filename format
+- `setLogToConsole(bool)` - Enable/disable console output
+- `setStartLog(string)` - Set the log file start string
+- `setEndLog(string)` - Set the log file end string
+- `setUseServerTime(bool)` - Enable/disable server time
+
+### Logging Methods
+- `info(message)` - Log an info message
+- `warn(message)` - Log a warning message
+- `error(message)` - Log an error message
+- `critical(message)` - Log a critical message
+- `debug(message)` - Log a debug message
+
+### Utility Methods
+- `getHelp()` - Display help information
+
 # License #
 
 Published under the [LGPL-2.1 license](https://github.com/mdaemon-technologies/logfile/blob/main/LICENSE "LGPL-2.1 License").

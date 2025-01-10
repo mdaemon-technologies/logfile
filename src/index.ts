@@ -1,11 +1,17 @@
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 
 function getDate() : string {
-  return new Date().toISOString().slice(0, 10);
+  let date = new Date();
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 }
 
 function getTime() : string {
-  return new Date().toISOString().slice(11, 19);
+  return new Date().toTimeString().substring(0, 8);
+}
+
+function getDateTime() : string {
+  let date = new Date();
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.toTimeString().substring(0, 8)}`;
 }
 
 /**
@@ -76,6 +82,7 @@ class LogFile {
   private rolloverEnabled: boolean;
   private logToConsole: boolean = false;
   private logLevel: number = 0;
+  private useServerTime: boolean = true;
 
   static DEBUG : number = 0;
   static INFO : number = 1;
@@ -118,10 +125,10 @@ class LogFile {
 
     this.date = getDate();
     if (this.rolloverEnabled) {
-      appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())));
+      appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())));
       this.previousFile = this.currentFile;
       this.currentFile = this.fileFormat.replace("%DATE%", this.date);
-      writeFileSync(this.file(), endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString())));
+      writeFileSync(this.file(), endWithNewLine(this.startLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())));
       this.pushLogs();
     }
   }
@@ -310,6 +317,15 @@ class LogFile {
     return this.rolloverEnabled;
   }
 
+/**
+ * Sets whether to enable useServerTime 
+ * 
+ * @param useServerTime Whether to enable useServerTime.
+ */
+    setUseServerTime(useServerTime: boolean): void {
+      this.useServerTime = useServerTime;
+    }
+
   /**
  * Logs help information to the console about log levels, log string macros, 
  * and the default log directory.
@@ -364,9 +380,10 @@ class LogFile {
       mkdirSync(this.dir, { recursive: true });
     }
 
-    this.currentFile = this.fileFormat.replace("%DATE%", getDate());
+    this.date = this.useServerTime ? getDate() : new Date().toISOString().substring(0, 10);
+    this.currentFile = this.fileFormat.replace("%DATE%", this.date);
 
-    let start = endWithNewLine(this.startLog.replace("%DATETIME%", new Date().toUTCString()))
+    let start = endWithNewLine(this.startLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString()));
     if (!existsSync(this.file())) {
       writeFileSync(this.file(), start);
     }
@@ -374,7 +391,6 @@ class LogFile {
       appendFileSync(this.file(), start);
     }
 
-    this.date = getDate();
     this.pushInterval = setInterval(this.pushLogs, 1000);
 
     if (this.rolloverEnabled) {
@@ -411,7 +427,7 @@ class LogFile {
     try {
       
       this.pushLogs();
-      appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", new Date().toUTCString())))
+      appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())))
 
       this.currentFile = "";
 
@@ -440,7 +456,7 @@ class LogFile {
         return true;
       }
 
-      let logThis = this.logStr.replace("%DATETIME%", `${getDate()} ${getTime()}`)
+      let logThis = this.logStr.replace("%DATETIME%", `${getDateTime()}`)
         .replace("%DATE%", getDate())
         .replace("%TIME%", getTime())
         .replace("%LEVEL%", this.logLevelToString(level))
