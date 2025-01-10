@@ -2,7 +2,11 @@ import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 
 function getDate() : string {
   let date = new Date();
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+  let month: number = date.getMonth() + 1;
+  let monthStr = month < 10 ? `0${month}` : `${month}`;
+  let day: number = date.getDate();
+  let dayStr = day < 10 ? `0${day}` : `${day}`;
+  return `${date.getFullYear()}-${monthStr}-${dayStr}`;
 }
 
 function getTime() : string {

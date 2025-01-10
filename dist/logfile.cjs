@@ -4,7 +4,11 @@ var fs = require('fs');
 
 function getDate() {
     var date = new Date();
-    return "".concat(date.getFullYear(), "-").concat(date.getMonth() + 1, "-").concat(date.getDate());
+    var month = date.getMonth() + 1;
+    var monthStr = month < 10 ? "0".concat(month) : "".concat(month);
+    var day = date.getDate();
+    var dayStr = day < 10 ? "0".concat(day) : "".concat(day);
+    return "".concat(date.getFullYear(), "-").concat(monthStr, "-").concat(dayStr);
 }
 function getTime() {
     return new Date().toTimeString().substring(0, 8);
