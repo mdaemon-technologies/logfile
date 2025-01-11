@@ -1,20 +1,20 @@
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 
-function getDate() : string {
-  let date = new Date();
-  let month: number = date.getMonth() + 1;
-  let monthStr = month < 10 ? `0${month}` : `${month}`;
-  let day: number = date.getDate();
-  let dayStr = day < 10 ? `0${day}` : `${day}`;
+function getDate(): string {
+  const date = new Date();
+  const month: number = date.getMonth() + 1;
+  const monthStr = month < 10 ? `0${month}` : `${month}`;
+  const day: number = date.getDate();
+  const dayStr = day < 10 ? `0${day}` : `${day}`;
   return `${date.getFullYear()}-${monthStr}-${dayStr}`;
 }
 
-function getTime() : string {
+function getTime(): string {
   return new Date().toTimeString().substring(0, 8);
 }
 
-function getDateTime() : string {
-  let date = new Date();
+function getDateTime(): string {
+  const date = new Date();
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.toTimeString().substring(0, 8)}`;
 }
 
@@ -45,15 +45,15 @@ interface LogFileOptions {
  */
 const endWithNewLine = (str: string) => str.endsWith("\n") ? str : str + "\n";
 
-const stringifyArgs = arg => {
+const stringifyArgs = (arg: Error | Object | any): string | undefined => {
   if (arg instanceof Error) {
     return arg.stack;
   }
-  
+
   if (arg instanceof Object) {
     return JSON.stringify(arg);
   }
-  
+
   return arg;
 };
 
@@ -88,11 +88,11 @@ class LogFile {
   private logLevel: number = 0;
   private useServerTime: boolean = true;
 
-  static DEBUG : number = 0;
-  static INFO : number = 1;
-  static WARNING : number = 2;
-  static ERROR : number = 3;
-  static CRITICAL : number = 4;
+  static DEBUG: number = 0;
+  static INFO: number = 1;
+  static WARNING: number = 2;
+  static ERROR: number = 3;
+  static CRITICAL: number = 4;
 
   constructor(options: LogFileOptions) {
     this.logLevel = options.logLevel || LogFile.INFO;
@@ -321,14 +321,14 @@ class LogFile {
     return this.rolloverEnabled;
   }
 
-/**
- * Sets whether to enable useServerTime 
- * 
- * @param useServerTime Whether to enable useServerTime.
- */
-    setUseServerTime(useServerTime: boolean): void {
-      this.useServerTime = useServerTime;
-    }
+  /**
+   * Sets whether to enable useServerTime 
+   * 
+   * @param useServerTime Whether to enable useServerTime.
+   */
+  setUseServerTime(useServerTime: boolean): void {
+    this.useServerTime = useServerTime;
+  }
 
   /**
  * Logs help information to the console about log levels, log string macros, 
@@ -429,7 +429,7 @@ class LogFile {
     }
 
     try {
-      
+
       this.pushLogs();
       appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())))
 
