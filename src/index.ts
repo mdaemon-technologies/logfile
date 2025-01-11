@@ -1,12 +1,12 @@
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 
 function getDate(): string {
-  const date = new Date();
-  const month: number = date.getMonth() + 1;
+  const now = new Date();
+  const month: number = now.getMonth() + 1;
   const monthStr = month < 10 ? `0${month}` : `${month}`;
-  const day: number = date.getDate();
+  const day: number = now.getDate();
   const dayStr = day < 10 ? `0${day}` : `${day}`;
-  return `${date.getFullYear()}-${monthStr}-${dayStr}`;
+  return `${now.getFullYear()}-${monthStr}-${dayStr}`;
 }
 
 function getTime(): string {
@@ -14,8 +14,8 @@ function getTime(): string {
 }
 
 function getDateTime(): string {
-  const date = new Date();
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.toTimeString().substring(0, 8)}`;
+  const now = new Date();
+  return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()} ${now.toTimeString().substring(0, 8)}`;
 }
 
 /**
