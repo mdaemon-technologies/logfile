@@ -1,6 +1,6 @@
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 
-function getDate(): string {
+function getDate() : string {
   const now = new Date();
   const month: number = now.getMonth() + 1;
   const monthStr = month < 10 ? `0${month}` : `${month}`;
@@ -9,11 +9,11 @@ function getDate(): string {
   return `${now.getFullYear()}-${monthStr}-${dayStr}`;
 }
 
-function getTime(): string {
+function getTime() : string {
   return new Date().toTimeString().substring(0, 8);
 }
 
-function getDateTime(): string {
+function getDateTime() : string {
   const now = new Date();
   return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()} ${now.toTimeString().substring(0, 8)}`;
 }
@@ -88,11 +88,11 @@ class LogFile {
   private logLevel: number = 0;
   private useServerTime: boolean = true;
 
-  static DEBUG: number = 0;
-  static INFO: number = 1;
-  static WARNING: number = 2;
-  static ERROR: number = 3;
-  static CRITICAL: number = 4;
+  static DEBUG : number = 0;
+  static INFO : number = 1;
+  static WARNING : number = 2;
+  static ERROR : number = 3;
+  static CRITICAL : number = 4;
 
   constructor(options: LogFileOptions) {
     this.logLevel = options.logLevel || LogFile.INFO;
