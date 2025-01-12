@@ -49,11 +49,11 @@ const stringifyArgs = (arg: Error | Object | any): string | undefined => {
   if (arg instanceof Error) {
     return arg.stack;
   }
-
+  
   if (arg instanceof Object) {
     return JSON.stringify(arg);
   }
-
+  
   return arg;
 };
 
@@ -321,14 +321,14 @@ class LogFile {
     return this.rolloverEnabled;
   }
 
-  /**
-   * Sets whether to enable useServerTime 
-   * 
-   * @param useServerTime Whether to enable useServerTime.
-   */
-  setUseServerTime(useServerTime: boolean): void {
-    this.useServerTime = useServerTime;
-  }
+/**
+ * Sets whether to enable useServerTime 
+ * 
+ * @param useServerTime Whether to enable useServerTime.
+ */
+    setUseServerTime(useServerTime: boolean): void {
+      this.useServerTime = useServerTime;
+    }
 
   /**
  * Logs help information to the console about log levels, log string macros, 
@@ -429,7 +429,7 @@ class LogFile {
     }
 
     try {
-
+      
       this.pushLogs();
       appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())))
 
