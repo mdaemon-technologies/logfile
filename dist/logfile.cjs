@@ -3,19 +3,19 @@
 var fs = require('fs');
 
 function getDate() {
-    var date = new Date();
-    var month = date.getMonth() + 1;
+    var now = new Date();
+    var month = now.getMonth() + 1;
     var monthStr = month < 10 ? "0".concat(month) : "".concat(month);
-    var day = date.getDate();
+    var day = now.getDate();
     var dayStr = day < 10 ? "0".concat(day) : "".concat(day);
-    return "".concat(date.getFullYear(), "-").concat(monthStr, "-").concat(dayStr);
+    return "".concat(now.getFullYear(), "-").concat(monthStr, "-").concat(dayStr);
 }
 function getTime() {
     return new Date().toTimeString().substring(0, 8);
 }
 function getDateTime() {
-    var date = new Date();
-    return "".concat(date.getFullYear(), "-").concat(date.getMonth() + 1, "-").concat(date.getDate(), " ").concat(date.toTimeString().substring(0, 8));
+    var now = new Date();
+    return "".concat(now.getFullYear(), "-").concat(now.getMonth() + 1, "-").concat(now.getDate(), " ").concat(now.toTimeString().substring(0, 8));
 }
 /**
  * Appends a newline to the end of the given string if one does not exist.
