@@ -2,25 +2,47 @@
 
 var fs = require('fs');
 
-function getDate() {
+/**
+ * Returns the current date in YYYY-MM-DD format.
+ * @returns {string} The formatted date string
+ */
+var getDate = function () {
     var now = new Date();
     var month = now.getMonth() + 1;
     var monthStr = month < 10 ? "0".concat(month) : "".concat(month);
     var day = now.getDate();
     var dayStr = day < 10 ? "0".concat(day) : "".concat(day);
     return "".concat(now.getFullYear(), "-").concat(monthStr, "-").concat(dayStr);
-}
-function getTime() {
+};
+/**
+ * Returns the current time in HH:MM:SS format.
+ * @returns {string} The formatted time string
+ */
+var getTime = function () {
     return new Date().toTimeString().substring(0, 8);
-}
-function getDateTime() {
+};
+/**
+ * Returns the current date and time in YYYY-M-D HH:MM:SS format.
+ * @returns {string} The formatted date and time string
+ */
+var getDateTime = function () {
     var now = new Date();
     return "".concat(now.getFullYear(), "-").concat(now.getMonth() + 1, "-").concat(now.getDate(), " ").concat(now.toTimeString().substring(0, 8));
-}
+};
 /**
- * Appends a newline to the end of the given string if one does not exist.
+ * Ensures a string ends with a newline character.
+ * @param {string} str - The input string to check
+ * @returns {string} The input string with a guaranteed trailing newline
  */
 var endWithNewLine = function (str) { return str.endsWith("\n") ? str : str + "\n"; };
+/**
+ * Converts various argument types to their string representation.
+ * @param {Error | Object | any} arg - The argument to stringify
+ * @returns {string | undefined} The string representation of the argument
+ *                              - For Error objects, returns the stack trace
+ *                              - For Objects, returns JSON string
+ *                              - For other types, returns the value directly
+ */
 var stringifyArgs = function (arg) {
     if (arg instanceof Error) {
         return arg.stack;
@@ -30,6 +52,23 @@ var stringifyArgs = function (arg) {
     }
     return arg;
 };
+
+var _a;
+var LogLevel;
+(function (LogLevel) {
+    LogLevel[LogLevel["DEBUG"] = 0] = "DEBUG";
+    LogLevel[LogLevel["INFO"] = 1] = "INFO";
+    LogLevel[LogLevel["WARNING"] = 2] = "WARNING";
+    LogLevel[LogLevel["ERROR"] = 3] = "ERROR";
+    LogLevel[LogLevel["CRITICAL"] = 4] = "CRITICAL";
+})(LogLevel || (LogLevel = {}));
+var levelMap = (_a = {},
+    _a[LogLevel.DEBUG] = "DEBUG",
+    _a[LogLevel.INFO] = "INFO",
+    _a[LogLevel.WARNING] = "WARNING",
+    _a[LogLevel.ERROR] = "ERROR",
+    _a[LogLevel.CRITICAL] = "CRITICAL",
+    _a);
 /**
  * LogFile class to handle writing log messages to file.
  *
@@ -48,13 +87,19 @@ var stringifyArgs = function (arg) {
 var LogFile = /** @class */ (function () {
     function LogFile(options) {
         var _this = this;
+        var _a;
         this.date = "";
         this.currentFile = "";
         this.previousFile = "";
         this.logs = [];
         this.logToConsole = false;
-        this.logLevel = 0;
+        this.logLevel = LogLevel.INFO;
         this.useServerTime = true;
+        this.BUFFER_SIZE = 1000;
+        this.BUFFER_TIMEOUT = 1000;
+        this.lastFlushTime = Date.now();
+        this.bufferSize = 0;
+        this.maxBufferSize = 16384; // 16 KB
         /**
        * Rollover to a new log file if the date has changed.
        *
@@ -86,14 +131,23 @@ var LogFile = /** @class */ (function () {
        * writing.
        */
         this.pushLogs = function () {
-            if (_this.logs.length > 0 && !!_this.currentFile) {
-                fs.appendFileSync(_this.file(), _this.logs.join("\n") + "\n");
+            if (_this.logs.length < 1 || !_this.currentFile) {
+                return;
+            }
+            try {
+                var logsToWrite = "".concat(_this.logs.join("\n"), "\n");
+                fs.appendFileSync(_this.file(), logsToWrite);
                 _this.logs = [];
+                _this.bufferSize = 0;
+                _this.lastFlushTime = Date.now();
+            }
+            catch (error) {
+                console.error("Failed to flush logs:", error);
             }
         };
         this.pushInterval = null;
         this.rolloverInterval = null;
-        this.logLevel = options.logLevel || LogFile.INFO;
+        this.logLevel = (_a = options.logLevel) !== null && _a !== void 0 ? _a : LogLevel.INFO;
         this.dir = options.dir || "./logs";
         this.fileFormat = options.fileFormat || "log-%DATE%.log";
         this.logToConsole = options.logToConsole || false;
@@ -113,25 +167,7 @@ var LogFile = /** @class */ (function () {
    * @returns The string representation of the log level.
    */
     LogFile.prototype.logLevelToString = function (level) {
-        var levelStr = "";
-        switch (level) {
-            case 0:
-                levelStr = "DEBUG";
-                break;
-            case 1:
-                levelStr = "INFO";
-                break;
-            case 2:
-                levelStr = "WARNING";
-                break;
-            case 3:
-                levelStr = "ERROR";
-                break;
-            case 4:
-                levelStr = "CRITICAL";
-                break;
-        }
-        return levelStr;
+        return levelMap[level] || "UNKNOWN";
     };
     /**
    * Sets the log level.
@@ -274,19 +310,7 @@ var LogFile = /** @class */ (function () {
    * and the default log directory.
    */
     LogFile.prototype.getHelp = function () {
-        console.log("Log Levels: \n" +
-            "0: Debug\n" +
-            "1: Info\n" +
-            "2: Warning\n" +
-            "3: Error\n" +
-            "4: Critical\n");
-        console.log("Log String Macros: \n" +
-            "%DATETIME%: Date and Time\n" +
-            "%DATE%: Date\n" +
-            "%TIME%: Time\n" +
-            "%LEVEL%: Log Level\n" +
-            "%MESSAGE%: Message\n");
-        console.log("Default directory:./logs");
+        console.log("\n      Log Levels: \n      0: Debug\n      1: Info\n      2: Warning\n      3: Error\n      4: Critical\n    \n      Log String Macros:\n      %DATETIME%: Date and Time\n      %DATE%: Date\n      %TIME%: Time\n      %LEVEL%: Log Level\n      %MESSAGE%: Message\n    \n      Default directory:./logs");
     };
     /**
    * Gets the path to the current log file.
@@ -294,7 +318,7 @@ var LogFile = /** @class */ (function () {
    * @returns The path to the current log file.
    */
     LogFile.prototype.file = function () {
-        return this.dir + "/" + this.currentFile;
+        return "".concat(this.dir, "/").concat(this.currentFile);
     };
     /**
    * Gets the path to the log file from the previous date.
@@ -302,7 +326,7 @@ var LogFile = /** @class */ (function () {
    * @returns The path to the log file from the previous date.
    */
     LogFile.prototype.lastFile = function () {
-        return this.dir + "/" + this.previousFile;
+        return "".concat(this.dir, "/").concat(this.previousFile);
     };
     /**
    * Starts the logger by initializing the log directory and files.
@@ -325,7 +349,7 @@ var LogFile = /** @class */ (function () {
         else {
             fs.appendFileSync(this.file(), start);
         }
-        this.pushInterval = setInterval(this.pushLogs, 1000);
+        this.pushInterval = setInterval(this.pushLogs, this.BUFFER_TIMEOUT);
         if (this.rolloverEnabled) {
             this.rolloverInterval = setInterval(this.rollOver, 5000);
         }
@@ -361,6 +385,15 @@ var LogFile = /** @class */ (function () {
         }
         return true;
     };
+    LogFile.prototype.addToLogs = function (log) {
+        this.logs.push(log);
+        this.bufferSize += log.length;
+        if (this.bufferSize >= this.maxBufferSize ||
+            this.logs.length >= this.BUFFER_SIZE ||
+            Date.now() - this.lastFlushTime >= this.BUFFER_TIMEOUT) {
+            this.pushLogs();
+        }
+    };
     /**
    * Logs a message to the log file with the given log level.
    *
@@ -369,7 +402,7 @@ var LogFile = /** @class */ (function () {
    * @returns True if the log was successful, false otherwise.
    */
     LogFile.prototype.log = function (message, level) {
-        if (level === void 0) { level = 0; }
+        if (level === void 0) { level = LogLevel.DEBUG; }
         try {
             if (!this.currentFile) {
                 this.start();
@@ -378,12 +411,12 @@ var LogFile = /** @class */ (function () {
                 this.rollOver();
                 return true;
             }
-            var logThis = this.logStr.replace("%DATETIME%", "".concat(getDateTime()))
+            var logThis = this.logStr.replace("%DATETIME%", getDateTime())
                 .replace("%DATE%", getDate())
                 .replace("%TIME%", getTime())
                 .replace("%LEVEL%", this.logLevelToString(level))
                 .replace("%MESSAGE%", message.replace(/\n|\r|\t/g, ""));
-            this.logs.push(logThis);
+            this.addToLogs(logThis);
             if (this.logToConsole) {
                 console.log(logThis);
             }
@@ -393,58 +426,6 @@ var LogFile = /** @class */ (function () {
             return false;
         }
         return true;
-    };
-    /**
-     * Logs an info message.
-     * @param {...any} args - The arguments to be logged.
-     * @returns {boolean} True if the log was successful, false otherwise.
-     */
-    LogFile.prototype.info = function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
-        args = args.map(stringifyArgs);
-        return this.log(args.join(" "), LogFile.INFO);
-    };
-    /**
-     * Logs a warning message.
-     * @param {...any} args - The arguments to be logged.
-     * @returns {boolean} True if the log was successful, false otherwise.
-     */
-    LogFile.prototype.warning = function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
-        args = args.map(stringifyArgs);
-        return this.log(args.join(" "), LogFile.WARNING);
-    };
-    /**
-     * Logs an error message.
-     * @param {...any} args - The arguments to be logged.
-     * @returns {boolean} True if the log was successful, false otherwise.
-     */
-    LogFile.prototype.error = function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
-        args = args.map(stringifyArgs);
-        return this.log(args.join(" "), LogFile.ERROR);
-    };
-    /**
-     * Logs a critical message.
-     * @param {...any} args - The arguments to be logged.
-     * @returns {boolean} True if the log was successful, false otherwise.
-     */
-    LogFile.prototype.critical = function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
-        args = args.map(stringifyArgs);
-        return this.log(args.join(" "), LogFile.CRITICAL);
     };
     /**
      * Logs a debug message.
@@ -457,13 +438,65 @@ var LogFile = /** @class */ (function () {
             args[_i] = arguments[_i];
         }
         args = args.map(stringifyArgs);
-        return this.log(args.join(" "), LogFile.DEBUG);
+        return this.log(args.join(" "), LogLevel.DEBUG);
     };
-    LogFile.DEBUG = 0;
-    LogFile.INFO = 1;
-    LogFile.WARNING = 2;
-    LogFile.ERROR = 3;
-    LogFile.CRITICAL = 4;
+    /**
+     * Logs an info message.
+     * @param {...any} args - The arguments to be logged.
+     * @returns {boolean} True if the log was successful, false otherwise.
+     */
+    LogFile.prototype.info = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        args = args.map(stringifyArgs);
+        return this.log(args.join(" "), LogLevel.INFO);
+    };
+    /**
+     * Logs a warning message.
+     * @param {...any} args - The arguments to be logged.
+     * @returns {boolean} True if the log was successful, false otherwise.
+     */
+    LogFile.prototype.warning = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        args = args.map(stringifyArgs);
+        return this.log(args.join(" "), LogLevel.WARNING);
+    };
+    /**
+     * Logs an error message.
+     * @param {...any} args - The arguments to be logged.
+     * @returns {boolean} True if the log was successful, false otherwise.
+     */
+    LogFile.prototype.error = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        args = args.map(stringifyArgs);
+        return this.log(args.join(" "), LogLevel.ERROR);
+    };
+    /**
+     * Logs a critical message.
+     * @param {...any} args - The arguments to be logged.
+     * @returns {boolean} True if the log was successful, false otherwise.
+     */
+    LogFile.prototype.critical = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        args = args.map(stringifyArgs);
+        return this.log(args.join(" "), LogLevel.CRITICAL);
+    };
+    LogFile.DEBUG = LogLevel.DEBUG;
+    LogFile.INFO = LogLevel.INFO;
+    LogFile.WARNING = LogLevel.WARNING;
+    LogFile.ERROR = LogLevel.ERROR;
+    LogFile.CRITICAL = LogLevel.CRITICAL;
     return LogFile;
 }());
 

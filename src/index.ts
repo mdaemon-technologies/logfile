@@ -1,22 +1,24 @@
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
+import { getDate, getTime, getDateTime, endWithNewLine, stringifyArgs } from "./util";
 
-function getDate() : string {
-  const now = new Date();
-  const month: number = now.getMonth() + 1;
-  const monthStr = month < 10 ? `0${month}` : `${month}`;
-  const day: number = now.getDate();
-  const dayStr = day < 10 ? `0${day}` : `${day}`;
-  return `${now.getFullYear()}-${monthStr}-${dayStr}`;
+enum LogLevel {
+  DEBUG = 0,
+  INFO = 1,
+  WARNING = 2,
+  ERROR = 3,
+  CRITICAL = 4
 }
 
-function getTime() : string {
-  return new Date().toTimeString().substring(0, 8);
-}
+type LogMacro = "%DATETIME%" | "%DATE%" | "%TIME%" | "%LEVEL%" | "%MESSAGE%";
+type LogFormat = `${string}${LogMacro}${string}`;
 
-function getDateTime() : string {
-  const now = new Date();
-  return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()} ${now.toTimeString().substring(0, 8)}`;
-}
+const levelMap = {
+  [LogLevel.DEBUG]: "DEBUG",
+  [LogLevel.INFO]: "INFO", 
+  [LogLevel.WARNING]: "WARNING",
+  [LogLevel.ERROR]: "ERROR",
+  [LogLevel.CRITICAL]: "CRITICAL"
+};
 
 /**
  * Interface for log file options.
@@ -30,32 +32,15 @@ function getDateTime() : string {
  * @property logStr - Format string for log messages. Defaults to '[{timestamp}] {level}: {msg}'.
  */
 interface LogFileOptions {
-  logLevel?: number;
+  logLevel?: LogLevel;
   dir?: string;
   fileFormat?: string;
   rollover?: boolean;
   logToConsole?: boolean;
-  startLog?: string;
-  endLog?: string;
-  logStr?: string;
+  startLog?: LogFormat;
+  endLog?: LogFormat;
+  logStr?: LogFormat;
 }
-
-/**
- * Appends a newline to the end of the given string if one does not exist.
- */
-const endWithNewLine = (str: string) => str.endsWith("\n") ? str : str + "\n";
-
-const stringifyArgs = (arg: Error | Object | any): string | undefined => {
-  if (arg instanceof Error) {
-    return arg.stack;
-  }
-  
-  if (arg instanceof Object) {
-    return JSON.stringify(arg);
-  }
-  
-  return arg;
-};
 
 /**
  * LogFile class to handle writing log messages to file.
@@ -73,41 +58,45 @@ const stringifyArgs = (arg: Error | Object | any): string | undefined => {
  * @returns LogFile instance.
  */
 class LogFile {
-
   private date: string = "";
   private currentFile: string = "";
   private previousFile: string = "";
   private logs: string[] = [];
   private dir: string;
   private fileFormat: string;
-  private logStr: string;
-  private startLog: string;
-  private endLog: string;
+  private logStr: LogFormat;
+  private startLog: LogFormat;
+  private endLog: LogFormat;
   private rolloverEnabled: boolean;
   private logToConsole: boolean = false;
-  private logLevel: number = 0;
+  private logLevel: LogLevel = LogLevel.INFO;
   private useServerTime: boolean = true;
+  private readonly BUFFER_SIZE = 1000;
+  private readonly BUFFER_TIMEOUT = 1000;
+  private lastFlushTime = Date.now();
+  private bufferSize = 0;
+  private maxBufferSize = 16384; // 16 KB
 
-  static DEBUG : number = 0;
-  static INFO : number = 1;
-  static WARNING : number = 2;
-  static ERROR : number = 3;
-  static CRITICAL : number = 4;
+  static readonly DEBUG = LogLevel.DEBUG;
+  static readonly INFO = LogLevel.INFO;
+  static readonly WARNING = LogLevel.WARNING;
+  static readonly ERROR = LogLevel.ERROR;
+  static readonly CRITICAL = LogLevel.CRITICAL;
 
   constructor(options: LogFileOptions) {
-    this.logLevel = options.logLevel || LogFile.INFO;
+    this.logLevel = options.logLevel ?? LogLevel.INFO
     this.dir = options.dir || "./logs";
     this.fileFormat = options.fileFormat || "log-%DATE%.log";
     this.logToConsole = options.logToConsole || false;
     this.rolloverEnabled = typeof options.rollover !== "undefined" ? options.rollover : true;
-    this.logStr = options.logStr || "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
+    this.logStr = options.logStr || "%DATE% %TIME% | %LEVEL% | %MESSAGE%" as LogFormat;
     this.startLog = options.startLog || "-----------------------------------------\n" +
       "------- Log Started: %DATETIME%\n" +
-      "-----------------------------------------\n";
+      "-----------------------------------------\n" as LogFormat;
 
     this.endLog = options.endLog || "-----------------------------------------\n" +
       "------- Log Ended: %DATETIME%\n" +
-      "-----------------------------------------\n";
+      "-----------------------------------------\n" as LogFormat;
   }
 
   /**
@@ -143,10 +132,20 @@ class LogFile {
  * writing.
  */
   private pushLogs = (): void => {
-    if (this.logs.length > 0 && !!this.currentFile) {
-      appendFileSync(this.file(), this.logs.join("\n") + "\n");
-      this.logs = [];
+    if (this.logs.length < 1 || !this.currentFile) {
+      return;
     }
+
+    try {
+      const logsToWrite = `${this.logs.join("\n")}\n`;
+      appendFileSync(this.file(), logsToWrite);
+      this.logs = [];
+      this.bufferSize = 0;
+      this.lastFlushTime = Date.now();
+    } catch (error) {
+      console.error("Failed to flush logs:", error);
+    }
+    
   }
 
   /**
@@ -156,25 +155,7 @@ class LogFile {
  * @returns The string representation of the log level.
  */
   private logLevelToString(level: number): string {
-    let levelStr = "";
-    switch (level) {
-      case 0:
-        levelStr = "DEBUG";
-        break;
-      case 1:
-        levelStr = "INFO";
-        break;
-      case 2:
-        levelStr = "WARNING";
-        break;
-      case 3:
-        levelStr = "ERROR";
-        break;
-      case 4:
-        levelStr = "CRITICAL";
-        break;
-    }
-    return levelStr;
+    return levelMap[level] || "UNKNOWN";
   }
 
   /**
@@ -182,7 +163,7 @@ class LogFile {
  *
  * @param level - The numeric log level to set.
  */
-  setLogLevel(level: number): void {
+  setLogLevel(level: LogLevel): void {
     this.logLevel = level;
   }
 
@@ -191,7 +172,7 @@ class LogFile {
  * 
  * @returns The current numeric log level.
  */
-  getLogLevel(): number {
+  getLogLevel(): LogLevel {
     return this.logLevel;
   }
 
@@ -254,7 +235,7 @@ class LogFile {
  * 
  * @param logStr The log string template.
  */
-  setLogStr(logStr: string): void {
+  setLogStr(logStr: LogFormat): void {
     this.logStr = logStr;
   }
 
@@ -263,7 +244,7 @@ class LogFile {
  * 
  * @returns The log string template.
  */
-  getLogStr(): string {
+  getLogStr(): LogFormat {
     return this.logStr;
   }
 
@@ -272,7 +253,7 @@ class LogFile {
  * 
  * @param startLog The start log message. 
  */
-  setStartLog(startLog: string): void {
+  setStartLog(startLog: LogFormat): void {
     this.startLog = startLog;
   }
 
@@ -281,7 +262,7 @@ class LogFile {
  * 
  * @returns The start log message.
  */
-  getStartLog(): string {
+  getStartLog(): LogFormat {
     return this.startLog;
   }
 
@@ -290,7 +271,7 @@ class LogFile {
  * 
  * @param endLog The end log message.
  */
-  setEndLog(endLog: string): void {
+  setEndLog(endLog: LogFormat): void {
     this.endLog = endLog;
   }
 
@@ -299,7 +280,7 @@ class LogFile {
  *
  * @returns The end log message.
  */
-  getEndLog(): string {
+  getEndLog(): LogFormat {
     return this.endLog;
   }
 
@@ -326,28 +307,31 @@ class LogFile {
  * 
  * @param useServerTime Whether to enable useServerTime.
  */
-    setUseServerTime(useServerTime: boolean): void {
-      this.useServerTime = useServerTime;
-    }
+  setUseServerTime(useServerTime: boolean): void {
+    this.useServerTime = useServerTime;
+  }
 
   /**
  * Logs help information to the console about log levels, log string macros, 
  * and the default log directory.
  */
   getHelp(): void {
-    console.log("Log Levels: \n" +
-      "0: Debug\n" +
-      "1: Info\n" +
-      "2: Warning\n" +
-      "3: Error\n" +
-      "4: Critical\n");
-    console.log("Log String Macros: \n" +
-      "%DATETIME%: Date and Time\n" +
-      "%DATE%: Date\n" +
-      "%TIME%: Time\n" +
-      "%LEVEL%: Log Level\n" +
-      "%MESSAGE%: Message\n");
-    console.log("Default directory:./logs");
+    console.log(`
+      Log Levels: 
+      0: Debug
+      1: Info
+      2: Warning
+      3: Error
+      4: Critical
+    
+      Log String Macros:
+      %DATETIME%: Date and Time
+      %DATE%: Date
+      %TIME%: Time
+      %LEVEL%: Log Level
+      %MESSAGE%: Message
+    
+      Default directory:./logs`);
   }
 
   /**
@@ -356,7 +340,7 @@ class LogFile {
  * @returns The path to the current log file.
  */
   file(): string {
-    return this.dir + "/" + this.currentFile;
+    return `${this.dir}/${this.currentFile}`;
   }
 
   /**
@@ -365,7 +349,7 @@ class LogFile {
  * @returns The path to the log file from the previous date.
  */
   lastFile(): string {
-    return this.dir + "/" + this.previousFile;
+    return `${this.dir}/${this.previousFile}`;
   }
 
   private pushInterval: NodeJS.Timeout | null = null;
@@ -395,7 +379,7 @@ class LogFile {
       appendFileSync(this.file(), start);
     }
 
-    this.pushInterval = setInterval(this.pushLogs, 1000);
+    this.pushInterval = setInterval(this.pushLogs, this.BUFFER_TIMEOUT);
 
     if (this.rolloverEnabled) {
       this.rolloverInterval = setInterval(this.rollOver, 5000);
@@ -442,6 +426,18 @@ class LogFile {
     return true;
   }
 
+  private addToLogs(log: string) {
+    this.logs.push(log);
+    this.bufferSize += log.length;
+
+    if (this.bufferSize >= this.maxBufferSize ||
+        this.logs.length >= this.BUFFER_SIZE ||
+        Date.now() - this.lastFlushTime >= this.BUFFER_TIMEOUT) {
+      this.pushLogs();
+    }
+    
+  }
+
   /**
  * Logs a message to the log file with the given log level. 
  * 
@@ -449,7 +445,7 @@ class LogFile {
  * @param level - The log level, defaults to 0.
  * @returns True if the log was successful, false otherwise.
  */
-  log(message: string, level: number = 0): boolean {
+  log(message: string, level: LogLevel = LogLevel.DEBUG): boolean {
     try {
       if (!this.currentFile) {
         this.start();
@@ -460,13 +456,13 @@ class LogFile {
         return true;
       }
 
-      let logThis = this.logStr.replace("%DATETIME%", `${getDateTime()}`)
+      const logThis = this.logStr.replace("%DATETIME%", getDateTime())
         .replace("%DATE%", getDate())
         .replace("%TIME%", getTime())
         .replace("%LEVEL%", this.logLevelToString(level))
         .replace("%MESSAGE%", message.replace(/\n|\r|\t/g, ""));
 
-      this.logs.push(logThis);
+      this.addToLogs(logThis);
 
       if (this.logToConsole) {
         console.log(logThis);
@@ -482,13 +478,23 @@ class LogFile {
   }
 
   /**
+   * Logs a debug message.
+   * @param {...any} args - The arguments to be logged.
+   * @returns {boolean} True if the log was successful, false otherwise.
+   */
+  debug(...args: any[]): boolean {
+    args = args.map(stringifyArgs);
+    return this.log(args.join(" "), LogLevel.DEBUG);
+  }
+
+  /**
    * Logs an info message.
    * @param {...any} args - The arguments to be logged.
    * @returns {boolean} True if the log was successful, false otherwise.
    */
   info(...args: any[]): boolean {
     args = args.map(stringifyArgs);
-    return this.log(args.join(" "), LogFile.INFO);
+    return this.log(args.join(" "), LogLevel.INFO);
   }
 
   /**
@@ -498,7 +504,7 @@ class LogFile {
    */
   warning(...args: any[]): boolean {
     args = args.map(stringifyArgs);
-    return this.log(args.join(" "), LogFile.WARNING);
+    return this.log(args.join(" "), LogLevel.WARNING);
   }
 
   /**
@@ -508,7 +514,7 @@ class LogFile {
    */
   error(...args: any[]): boolean {
     args = args.map(stringifyArgs);
-    return this.log(args.join(" "), LogFile.ERROR);
+    return this.log(args.join(" "), LogLevel.ERROR);
   }
 
   /**
@@ -518,17 +524,7 @@ class LogFile {
    */
   critical(...args: any[]): boolean {
     args = args.map(stringifyArgs);
-    return this.log(args.join(" "), LogFile.CRITICAL);
-  }
-
-  /**
-   * Logs a debug message.
-   * @param {...any} args - The arguments to be logged.
-   * @returns {boolean} True if the log was successful, false otherwise.
-   */
-  debug(...args: any[]): boolean {
-    args = args.map(stringifyArgs);
-    return this.log(args.join(" "), LogFile.DEBUG);
+    return this.log(args.join(" "), LogLevel.CRITICAL);
   }
 }
 
