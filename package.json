@@ -1,6 +1,6 @@
 {
   "name": "@mdaemon/logfile",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "description": "A node logging utility",
   "type": "module",
   "main": "dist/logfile.cjs",
@@ -41,15 +41,13 @@
   "homepage": "https://github.com/mdaemon-technologies/logfile#readme",
   "devDependencies": {
     "@rollup/plugin-typescript": "^11.1.6",
-    "@types/jest": "^29.5.12",
+    "@types/jest": "^29.5.14",
     "jest": "^29.7.0",
-    "rollup": "^3.29.4",
-    "ts-jest": "^29.2.4",
+    "rollup": "^3.29.5",
+    "ts-jest": "^29.2.6",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4"
-  },
-  "dependencies": {
-    "tslib": "^2.6.3"
+    "tslib": "^2.8.1",
+    "typescript": "^5.8.2"
   },
   "files": [
     "dist"
