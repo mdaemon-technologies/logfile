@@ -95,6 +95,11 @@ describe("LogFile", () => {
     expect(spy).toHaveBeenCalledWith('Test warning message', LogFile.WARNING);
   });
 
+  test('warn method logs at WARNING level', () => {
+    logFile.warn('Test warning message using alias "warn"');
+    expect(spy).toHaveBeenCalledWith('Test warning message using alias "warn"', LogFile.WARNING);
+  });
+
   test('error method logs at ERROR level', () => {
     logFile.error('Test error message');
     expect(spy).toHaveBeenCalledWith('Test error message', LogFile.ERROR);

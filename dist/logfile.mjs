@@ -465,6 +465,18 @@ var LogFile = /** @class */ (function () {
         return this.log(args.join(" "), LogLevel.WARNING);
     };
     /**
+     * Alias for warning method.
+     * @param {...any} args - The arguments to be logged.
+     * @returns {boolean} True if the log was successful, false otherwise.
+     */
+    LogFile.prototype.warn = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        return this.warning.apply(this, args);
+    };
+    /**
      * Logs an error message.
      * @param {...any} args - The arguments to be logged.
      * @returns {boolean} True if the log was successful, false otherwise.

@@ -53,6 +53,7 @@ export default class LogFile {
   log(message: string, level: number): boolean;
   info(...args: any[]): boolean;
   warning(...args: any[]): boolean;
+  warn(...args: any[]): boolean;
   error(...args: any[]): boolean;
   critical(...args: any[]): boolean;
   debug(...args: any[]): boolean;

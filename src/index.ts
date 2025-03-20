@@ -508,6 +508,15 @@ class LogFile {
   }
 
   /**
+   * Alias for warning method.
+   * @param {...any} args - The arguments to be logged.
+   * @returns {boolean} True if the log was successful, false otherwise.
+   */
+  warn(...args: any[]): boolean {
+    return this.warning(...args);
+  }
+
+  /**
    * Logs an error message.
    * @param {...any} args - The arguments to be logged.
    * @returns {boolean} True if the log was successful, false otherwise.
