@@ -10,7 +10,7 @@ enum LogLevel {
 }
 
 type LogMacro = "%DATETIME%" | "%DATE%" | "%TIME%" | "%LEVEL%" | "%MESSAGE%";
-type LogFormat = `${string}${LogMacro}${string}`;
+type LogFormat = `${string}${LogMacro}${string}` | string | `${LogMacro}`;
 
 const levelMap = {
   [LogLevel.DEBUG]: "DEBUG",
@@ -354,6 +354,7 @@ class LogFile {
 
   private pushInterval: NodeJS.Timeout | null = null;
   private rolloverInterval: NodeJS.Timeout | null = null;
+  private isStarted: boolean = false;
 
   /**
  * Starts the logger by initializing the log directory and files.
@@ -364,6 +365,10 @@ class LogFile {
  * @returns True if the log file was initialized successfully, false otherwise.
  */
   start(): boolean {
+    if (this.isStarted) {
+      return existsSync(this.file());
+    }
+
     if (!existsSync(this.dir)) {
       mkdirSync(this.dir, { recursive: true });
     }
@@ -385,6 +390,28 @@ class LogFile {
       this.rolloverInterval = setInterval(this.rollOver, 5000);
     }
 
+    // Register handlers for process termination signals
+    process.on('exit', () => this.pushLogs());
+    process.on('SIGINT', () => {
+      this.pushLogs();
+      this.stop();
+      process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+      this.pushLogs();
+      this.stop();
+      process.exit(0);
+    });
+    
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      this.critical('Uncaught Exception:', error);
+      this.pushLogs();
+      this.stop();
+      process.exit(1);
+    });
+
+    this.isStarted = true;
     return existsSync(this.file());
   }
 
@@ -394,6 +421,10 @@ class LogFile {
  * @returns True if the logger was stopped successfully, false otherwise.
  */
   stop(): boolean {
+    if (!this.isStarted) {
+      return true;
+    }
+
     if (this.pushInterval) {
       clearInterval(this.pushInterval);
       this.pushInterval = null;
@@ -423,6 +454,7 @@ class LogFile {
       return false;
     }
 
+    this.isStarted = false;
     return true;
   }
 
@@ -436,6 +468,26 @@ class LogFile {
       this.pushLogs();
     }
     
+  }
+
+  /**
+   * Synchronously flushes logs to disk immediately.
+   * Use sparingly as this blocks the event loop.
+   */
+  flushSync(): void {
+    if (this.logs.length < 1 || !this.currentFile) {
+      return;
+    }
+
+    try {
+      const logsToWrite = `${this.logs.join("\n")}\n`;
+      appendFileSync(this.file(), logsToWrite);
+      this.logs = [];
+      this.bufferSize = 0;
+      this.lastFlushTime = Date.now();
+    } catch (error) {
+      console.error("Failed to flush logs synchronously:", error);
+    }
   }
 
   /**
@@ -533,7 +585,9 @@ class LogFile {
    */
   critical(...args: any[]): boolean {
     args = args.map(stringifyArgs);
-    return this.log(args.join(" "), LogLevel.CRITICAL);
+    const result = this.log(args.join(" "), LogLevel.CRITICAL);
+    this.flushSync();
+    return result;
   }
 }
 

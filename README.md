@@ -104,6 +104,9 @@
   // log to debug
   logFile.debug("This is a debug log");
 
+  // force synchronous flush to disk
+  logFile.flushSync();
+
 ```
 
 #### LogFile Methods ####
@@ -123,11 +126,62 @@
 - `info(message)` - Log an info message
 - `warn(message)` - Log a warning message
 - `error(message)` - Log an error message
-- `critical(message)` - Log a critical message
+- `critical(message)` - Log a critical message (automatically flushes to disk)
 - `debug(message)` - Log a debug message
 
 ### Utility Methods
 - `getHelp()` - Display help information
+- `flushSync()` - Force immediate synchronous write of buffered logs to disk
+- `start()` - Initialize the logger and set up shutdown handlers
+- `stop()` - Stop the logger, flush remaining logs, and clean up resources
+
+### Forced Shutdown Protection
+The logger automatically handles various termination scenarios to ensure logs are not lost:
+
+- Registers handlers for exit, SIGINT, and SIGTERM signals to flush logs
+- Automatically logs and flushes uncaught exceptions before termination
+- Critical log messages are immediately flushed to disk
+
+# Testing
+
+The package includes a comprehensive testing setup that allows for testing the following formats:
+
+1. TypeScript source files (index.ts) before building
+2. CommonJS output (logfile.cjs) after building
+
+### Running Tests
+
+```bash
+# Test TypeScript source directly
+npm run test:source
+
+# Test CommonJS output
+npm run test:cjs
+
+# Run all tests (source, build CommonJS, then test each)
+npm run test:all
+```
+
+The testing system uses a test helper that dynamically imports the appropriate module format based on environment variables, allowing the same test suite to verify all formats.
+
+```javascript
+// Example of how to use the test helper in tests
+import { getLogFile } from './test-helper';
+
+// Wait for the LogFile class to be dynamically loaded
+const LogFile = await getLogFile();
+const logFile = new LogFile({ logLevel: LogFile.DEBUG });
+```
+
+### Testing Challenges
+
+Testing different module formats in Jest can be challenging. This project addresses these challenges by:
+
+1. Using different Jest configurations for different module formats
+2. Dynamically importing modules based on the test environment
+3. Properly handling imports and mocks
+
+If you're extending the tests, be aware that different module formats may require special handling for imports, mocks, and configuration.
 
 # License #
 

@@ -147,6 +147,7 @@ var LogFile = /** @class */ (function () {
         };
         this.pushInterval = null;
         this.rolloverInterval = null;
+        this.isStarted = false;
         this.logLevel = (_a = options.logLevel) !== null && _a !== void 0 ? _a : LogLevel.INFO;
         this.dir = options.dir || "./logs";
         this.fileFormat = options.fileFormat || "log-%DATE%.log";
@@ -337,6 +338,10 @@ var LogFile = /** @class */ (function () {
    * @returns True if the log file was initialized successfully, false otherwise.
    */
     LogFile.prototype.start = function () {
+        var _this = this;
+        if (this.isStarted) {
+            return fs.existsSync(this.file());
+        }
         if (!fs.existsSync(this.dir)) {
             fs.mkdirSync(this.dir, { recursive: true });
         }
@@ -353,6 +358,26 @@ var LogFile = /** @class */ (function () {
         if (this.rolloverEnabled) {
             this.rolloverInterval = setInterval(this.rollOver, 5000);
         }
+        // Register handlers for process termination signals
+        process.on('exit', function () { return _this.pushLogs(); });
+        process.on('SIGINT', function () {
+            _this.pushLogs();
+            _this.stop();
+            process.exit(0);
+        });
+        process.on('SIGTERM', function () {
+            _this.pushLogs();
+            _this.stop();
+            process.exit(0);
+        });
+        // Handle uncaught exceptions
+        process.on('uncaughtException', function (error) {
+            _this.critical('Uncaught Exception:', error);
+            _this.pushLogs();
+            _this.stop();
+            process.exit(1);
+        });
+        this.isStarted = true;
         return fs.existsSync(this.file());
     };
     /**
@@ -361,6 +386,9 @@ var LogFile = /** @class */ (function () {
    * @returns True if the logger was stopped successfully, false otherwise.
    */
     LogFile.prototype.stop = function () {
+        if (!this.isStarted) {
+            return true;
+        }
         if (this.pushInterval) {
             clearInterval(this.pushInterval);
             this.pushInterval = null;
@@ -383,6 +411,7 @@ var LogFile = /** @class */ (function () {
         catch (ex) {
             return false;
         }
+        this.isStarted = false;
         return true;
     };
     LogFile.prototype.addToLogs = function (log) {
@@ -392,6 +421,25 @@ var LogFile = /** @class */ (function () {
             this.logs.length >= this.BUFFER_SIZE ||
             Date.now() - this.lastFlushTime >= this.BUFFER_TIMEOUT) {
             this.pushLogs();
+        }
+    };
+    /**
+     * Synchronously flushes logs to disk immediately.
+     * Use sparingly as this blocks the event loop.
+     */
+    LogFile.prototype.flushSync = function () {
+        if (this.logs.length < 1 || !this.currentFile) {
+            return;
+        }
+        try {
+            var logsToWrite = "".concat(this.logs.join("\n"), "\n");
+            fs.appendFileSync(this.file(), logsToWrite);
+            this.logs = [];
+            this.bufferSize = 0;
+            this.lastFlushTime = Date.now();
+        }
+        catch (error) {
+            console.error("Failed to flush logs synchronously:", error);
         }
     };
     /**
@@ -502,7 +550,9 @@ var LogFile = /** @class */ (function () {
             args[_i] = arguments[_i];
         }
         args = args.map(stringifyArgs);
-        return this.log(args.join(" "), LogLevel.CRITICAL);
+        var result = this.log(args.join(" "), LogLevel.CRITICAL);
+        this.flushSync();
+        return result;
     };
     LogFile.DEBUG = LogLevel.DEBUG;
     LogFile.INFO = LogLevel.INFO;
