@@ -12,7 +12,7 @@ enum LogLevel {
 type LogMacro = "%DATETIME%" | "%DATE%" | "%TIME%" | "%LEVEL%" | "%MESSAGE%";
 type LogFormat = `${string}${LogMacro}${string}` | string | `${LogMacro}`;
 
-const levelMap = {
+const levelMap: Record<number, string> = {
   [LogLevel.DEBUG]: "DEBUG",
   [LogLevel.INFO]: "INFO", 
   [LogLevel.WARNING]: "WARNING",
