@@ -5,6 +5,9 @@ export interface LogFileOptions {
   startLog?: string;
   endLog?: string;
   logStr?: string;
+  fileFormat?: string;
+  logLevel?: number;
+  logToConsole?: boolean;
 }
 
 export default class LogFile {
