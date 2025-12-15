@@ -1,4 +1,4 @@
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
+import { writeFileSync, appendFileSync, existsSync, mkdirSync, statSync } from "fs";
 import { getDate, getTime, getDateTime, endWithNewLine, stringifyArgs } from "./util";
 
 enum LogLevel {
@@ -26,6 +26,7 @@ const levelMap: Record<number, string> = {
  * @property dir - Optional directory to write log files to. Defaults to current working directory.
  * @property file - Name of log file. Defaults to 'app.log'.  
  * @property rollover - Whether to rollover the log file when it reaches a max size. Default false.
+ * @property maxFileSize - Maximum file size in bytes before triggering a size-based rollover. Default 104857600 (100 MB). When exceeded, creates a new file with a numeric suffix (e.g., log-2024-01-01-1.log, log-2024-01-01-2.log).
  * @property logToConsole - Whether to also log to the console. Default false. 
  * @property startLog - Message to log on application start.
  * @property endLog - Message to log on application end.
@@ -36,6 +37,7 @@ interface LogFileOptions {
   dir?: string;
   fileFormat?: string;
   rollover?: boolean;
+  maxFileSize?: number;
   logToConsole?: boolean;
   startLog?: LogFormat;
   endLog?: LogFormat;
@@ -50,6 +52,7 @@ interface LogFileOptions {
  * @param options.dir - Directory to write log files. Default ./logs.
  * @param options.fileFormat - Log file name format. Default log-%DATE%.log. 
  * @param options.rollover - Whether to rollover log when size limit reached.
+ * @param options.maxFileSize - Maximum file size in bytes before triggering size-based rollover. Default 104857600 (100 MB). When exceeded, a new file is created with an incremental numeric suffix (e.g., log-2024-01-01-1.log, log-2024-01-01-2.log).
  * @param options.logToConsole - Whether to also log to console. 
  * @param options.startLog - Message logged on start.
  * @param options.endLog - Message logged on end.  
@@ -76,6 +79,8 @@ class LogFile {
   private lastFlushTime = Date.now();
   private bufferSize = 0;
   private maxBufferSize = 16384; // 16 KB
+  private maxFileSize: number;
+  private fileSuffix: number = 0;
 
   static readonly DEBUG = LogLevel.DEBUG;
   static readonly INFO = LogLevel.INFO;
@@ -89,6 +94,7 @@ class LogFile {
     this.fileFormat = options.fileFormat || "log-%DATE%.log";
     this.logToConsole = options.logToConsole || false;
     this.rolloverEnabled = typeof options.rollover !== "undefined" ? options.rollover : true;
+    this.maxFileSize = options.maxFileSize ?? 104857600; // 100 MB default
     this.logStr = options.logStr || "%DATE% %TIME% | %LEVEL% | %MESSAGE%" as LogFormat;
     this.startLog = options.startLog || "-----------------------------------------\n" +
       "------- Log Started: %DATETIME%\n" +
@@ -120,9 +126,46 @@ class LogFile {
     if (this.rolloverEnabled) {
       appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())));
       this.previousFile = this.currentFile;
+      this.fileSuffix = 0; // Reset suffix for new day
       this.currentFile = this.fileFormat.replace("%DATE%", this.date);
       writeFileSync(this.file(), endWithNewLine(this.startLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())));
       this.pushLogs();
+    }
+  }
+
+  /**
+ * Check if the current log file exceeds the maximum file size.
+ * If so, rollover to a new file with an incremented suffix.
+ */
+  private checkFileSizeAndRollover = (): void => {
+    if (!existsSync(this.file())) {
+      return;
+    }
+
+    try {
+      const stats = statSync(this.file());
+      if (stats.size >= this.maxFileSize) {
+        // Append end log to current file
+        appendFileSync(this.file(), endWithNewLine(this.endLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())));
+        
+        // Increment suffix and generate new filename
+        this.previousFile = this.currentFile;
+        this.fileSuffix++;
+        
+        // Generate new filename with suffix
+        const baseFilename = this.fileFormat.replace("%DATE%", this.date);
+        const extIndex = baseFilename.lastIndexOf('.');
+        if (extIndex > 0) {
+          this.currentFile = `${baseFilename.substring(0, extIndex)}-${this.fileSuffix}${baseFilename.substring(extIndex)}`;
+        } else {
+          this.currentFile = `${baseFilename}-${this.fileSuffix}`;
+        }
+        
+        // Create new file with start log
+        writeFileSync(this.file(), endWithNewLine(this.startLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())));
+      }
+    } catch (error) {
+      console.error("Failed to check file size:", error);
     }
   }
 
@@ -142,6 +185,9 @@ class LogFile {
       this.logs = [];
       this.bufferSize = 0;
       this.lastFlushTime = Date.now();
+      
+      // Check if file size exceeded after writing
+      this.checkFileSizeAndRollover();
     } catch (error) {
       console.error("Failed to flush logs:", error);
     }
@@ -485,6 +531,9 @@ class LogFile {
       this.logs = [];
       this.bufferSize = 0;
       this.lastFlushTime = Date.now();
+      
+      // Check if file size exceeded after writing
+      this.checkFileSizeAndRollover();
     } catch (error) {
       console.error("Failed to flush logs synchronously:", error);
     }

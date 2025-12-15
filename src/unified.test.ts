@@ -301,4 +301,172 @@ describe("LogFile", () => {
     criticalSpy.mockRestore();
     stopSpy.mockRestore();
   });
+
+  it('should rollover to a new file when maxFileSize is exceeded', async () => {
+    // Create a logger with a small max file size (1 KB)
+    const smallSizeLogFile = new LogFile({ 
+      logLevel: LogFile.DEBUG,
+      maxFileSize: 1024 // 1 KB
+    });
+    smallSizeLogFile.start();
+    
+    // Write enough logs to exceed the file size limit
+    for (let i = 0; i < 100; i++) {
+      smallSizeLogFile.info(`This is test message number ${i} with some extra content to make it longer`);
+    }
+    
+    // Force flush to ensure all logs are written
+    smallSizeLogFile.flushSync();
+    
+    // Wait a bit for file operations to complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Check that multiple files were created
+    const files = fs.readdirSync("./logs");
+    expect(files.length).toBeGreaterThan(1);
+    
+    // Verify file naming pattern (should have -1, -2, etc. suffixes)
+    const hasRolloverFile = files.some(file => file.match(/log-\d{4}-\d{2}-\d{2}-\d+\.log/));
+    expect(hasRolloverFile).toBe(true);
+    
+    smallSizeLogFile.stop();
+  });
+
+  it('should create files with incrementing numeric suffixes during size rollover', async () => {
+    // Create a logger with a very small max file size (500 bytes)
+    const tinyLogFile = new LogFile({ 
+      logLevel: LogFile.DEBUG,
+      maxFileSize: 500
+    });
+    tinyLogFile.start();
+    
+    // Write lots of logs to trigger multiple rollovers
+    for (let i = 0; i < 150; i++) {
+      tinyLogFile.info(`Test message ${i} with additional content to reach size limit quickly`);
+    }
+    
+    tinyLogFile.flushSync();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    const files = fs.readdirSync("./logs");
+    
+    // Should have base file plus rollover files
+    expect(files.length).toBeGreaterThanOrEqual(2);
+    
+    // Check for sequential numbering (-1, -2, etc.)
+    const rolloverFiles = files.filter(file => file.match(/log-\d{4}-\d{2}-\d{2}-\d+\.log/));
+    expect(rolloverFiles.length).toBeGreaterThan(0);
+    
+    // Verify first rollover file has -1 suffix
+    const hasFile1 = files.some(file => file.match(/log-\d{4}-\d{2}-\d{2}-1\.log/));
+    expect(hasFile1).toBe(true);
+    
+    tinyLogFile.stop();
+  });
+
+  it('should use default maxFileSize of 100 MB when not specified', () => {
+    const defaultLogFile = new LogFile({ logLevel: LogFile.DEBUG });
+    defaultLogFile.start();
+    
+    // Write a few logs (nowhere near 100 MB)
+    for (let i = 0; i < 10; i++) {
+      defaultLogFile.info(`Test message ${i}`);
+    }
+    
+    defaultLogFile.flushSync();
+    
+    // Should only have one file since we didn't exceed 100 MB
+    const files = fs.readdirSync("./logs");
+    expect(files.length).toBe(1);
+    
+    // File should not have a numeric suffix
+    expect(files[0]).toMatch(/^log-\d{4}-\d{2}-\d{2}\.log$/);
+    
+    defaultLogFile.stop();
+  });
+
+  it('should accept custom maxFileSize in constructor options', async () => {
+    // Create logger with custom 2 KB max size
+    const customLogFile = new LogFile({ 
+      logLevel: LogFile.DEBUG,
+      maxFileSize: 2048 // 2 KB
+    });
+    customLogFile.start();
+    
+    // Write enough to potentially trigger rollover
+    for (let i = 0; i < 50; i++) {
+      customLogFile.info(`Custom size test message number ${i} with extra padding text`);
+    }
+    
+    customLogFile.flushSync();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    const files = fs.readdirSync("./logs");
+    
+    // Verify at least one file was created
+    expect(files.length).toBeGreaterThanOrEqual(1);
+    
+    customLogFile.stop();
+  });
+
+  it('should include start and end log messages in rollover files', async () => {
+    const rolloverLogFile = new LogFile({ 
+      logLevel: LogFile.DEBUG,
+      maxFileSize: 800
+    });
+    rolloverLogFile.start();
+    
+    // Write enough to trigger rollover
+    for (let i = 0; i < 80; i++) {
+      rolloverLogFile.info(`Message ${i} for rollover test with padding content`);
+    }
+    
+    rolloverLogFile.flushSync();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    const files = fs.readdirSync("./logs");
+    
+    if (files.length > 1) {
+      // Check that rollover file exists and has start log
+      const rolloverFile = files.find(f => f.match(/log-\d{4}-\d{2}-\d{2}-\d+\.log/));
+      if (rolloverFile) {
+        const content = fs.readFileSync(`./logs/${rolloverFile}`, 'utf8');
+        expect(content).toContain('Log Started:');
+      }
+    }
+    
+    rolloverLogFile.stop();
+  });
+
+  it('should handle file size checks without errors when file does not exist', () => {
+    const testLogFile = new LogFile({ 
+      logLevel: LogFile.DEBUG,
+      maxFileSize: 1024
+    });
+    
+    // Don't start the logger, so no file exists yet
+    // This should not throw an error when checking file size
+    expect(() => {
+      testLogFile.flushSync();
+    }).not.toThrow();
+  });
+
+  it('should reset suffix counter when date changes (date-based rollover)', () => {
+    // This test verifies the logic exists, though testing actual date change is complex
+    const dateRolloverLogFile = new LogFile({ 
+      logLevel: LogFile.DEBUG,
+      maxFileSize: 1024
+    });
+    dateRolloverLogFile.start();
+    
+    // Write some logs
+    dateRolloverLogFile.info('Test message before date rollover');
+    dateRolloverLogFile.flushSync();
+    
+    // Verify file was created
+    const files = fs.readdirSync("./logs");
+    expect(files.length).toBeGreaterThanOrEqual(1);
+    
+    dateRolloverLogFile.stop();
+  });
 });

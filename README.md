@@ -28,6 +28,7 @@
    * fileFormat: "log-%DATE%.log"
    * logToConsole: false
    * rollover: true
+   * maxFileSize: 104857600 (100 MB)
    * useServerTime: true
    * logStr: "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
    * startLog: "-----------------------------------------\n" +
@@ -107,6 +108,45 @@
   // force synchronous flush to disk
   logFile.flushSync();
 
+```
+
+#### Log File Rollover ####
+
+The logger supports two types of automatic file rollover:
+
+**Date-based Rollover** (when `rollover: true`):
+- Automatically creates a new log file when the date changes
+- File names use the `fileFormat` pattern with `%DATE%` replaced by the current date
+- Example: `log-2024-01-01.log`, `log-2024-01-02.log`, etc.
+
+**Size-based Rollover** (controlled by `maxFileSize`):
+- Automatically creates a new log file when the current file exceeds `maxFileSize` (default: 100 MB)
+- New files are created with an incremental numeric suffix
+- Example: If `log-2024-01-01.log` exceeds the max size:
+  - First rollover creates: `log-2024-01-01-1.log`
+  - Second rollover creates: `log-2024-01-01-2.log`
+  - And so on...
+- The suffix counter resets to 0 when a date-based rollover occurs
+
+**Combined Behavior**:
+- Both rollover types work together seamlessly
+- Date changes always create a new base file (resetting the size suffix)
+- Within a single day, size-based rollovers create numbered variants
+- Each new file (date or size-based) starts with the `startLog` message
+- Files being closed receive the `endLog` message
+
+```javascript
+// Example: Create a logger with a 50 MB max file size
+const logFile = new LogFile({ 
+  maxFileSize: 52428800, // 50 MB in bytes
+  fileFormat: "app-%DATE%.log"
+});
+
+// This will create files like:
+// app-2024-01-01.log (up to 50 MB)
+// app-2024-01-01-1.log (up to 50 MB)
+// app-2024-01-01-2.log (up to 50 MB)
+// app-2024-01-02.log (new day, suffix resets)
 ```
 
 #### LogFile Methods ####

@@ -2,6 +2,7 @@ export interface LogFileOptions {
   dir?: string;
   file?: string;
   rollover?: boolean;
+  maxFileSize?: number;
   startLog?: string;
   endLog?: string;
   logStr?: string;
@@ -24,6 +25,8 @@ export default class LogFile {
   private rolloverEnabled: boolean;
   private pushInterval: NodeJS.Timer;
   private rolloverInterval: NodeJS.Timer;
+  private maxFileSize: number;
+  private fileSuffix: number;
   static INFO: number;
   static WARNING: number;
   static ERROR: number;
@@ -33,6 +36,7 @@ export default class LogFile {
   private rollover();
   private pushLogs();
   private logLevelToString(level: number);
+  private checkFileSizeAndRollover();
   setLogLevel(level: number): void;
   getLogLevel(): number;
   getLogDir(): string;

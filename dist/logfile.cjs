@@ -77,6 +77,7 @@ var levelMap = (_a = {},
  * @param options.dir - Directory to write log files. Default ./logs.
  * @param options.fileFormat - Log file name format. Default log-%DATE%.log.
  * @param options.rollover - Whether to rollover log when size limit reached.
+ * @param options.maxFileSize - Maximum file size in bytes before triggering size-based rollover. Default 104857600 (100 MB). When exceeded, a new file is created with an incremental numeric suffix (e.g., log-2024-01-01-1.log, log-2024-01-01-2.log).
  * @param options.logToConsole - Whether to also log to console.
  * @param options.startLog - Message logged on start.
  * @param options.endLog - Message logged on end.
@@ -87,7 +88,7 @@ var levelMap = (_a = {},
 var LogFile = /** @class */ (function () {
     function LogFile(options) {
         var _this = this;
-        var _a;
+        var _a, _b;
         this.date = "";
         this.currentFile = "";
         this.previousFile = "";
@@ -100,6 +101,7 @@ var LogFile = /** @class */ (function () {
         this.lastFlushTime = Date.now();
         this.bufferSize = 0;
         this.maxBufferSize = 16384; // 16 KB
+        this.fileSuffix = 0;
         /**
        * Rollover to a new log file if the date has changed.
        *
@@ -120,9 +122,43 @@ var LogFile = /** @class */ (function () {
             if (_this.rolloverEnabled) {
                 fs.appendFileSync(_this.file(), endWithNewLine(_this.endLog.replace("%DATETIME%", _this.useServerTime ? new Date().toString() : new Date().toUTCString())));
                 _this.previousFile = _this.currentFile;
+                _this.fileSuffix = 0; // Reset suffix for new day
                 _this.currentFile = _this.fileFormat.replace("%DATE%", _this.date);
                 fs.writeFileSync(_this.file(), endWithNewLine(_this.startLog.replace("%DATETIME%", _this.useServerTime ? new Date().toString() : new Date().toUTCString())));
                 _this.pushLogs();
+            }
+        };
+        /**
+       * Check if the current log file exceeds the maximum file size.
+       * If so, rollover to a new file with an incremented suffix.
+       */
+        this.checkFileSizeAndRollover = function () {
+            if (!fs.existsSync(_this.file())) {
+                return;
+            }
+            try {
+                var stats = fs.statSync(_this.file());
+                if (stats.size >= _this.maxFileSize) {
+                    // Append end log to current file
+                    fs.appendFileSync(_this.file(), endWithNewLine(_this.endLog.replace("%DATETIME%", _this.useServerTime ? new Date().toString() : new Date().toUTCString())));
+                    // Increment suffix and generate new filename
+                    _this.previousFile = _this.currentFile;
+                    _this.fileSuffix++;
+                    // Generate new filename with suffix
+                    var baseFilename = _this.fileFormat.replace("%DATE%", _this.date);
+                    var extIndex = baseFilename.lastIndexOf('.');
+                    if (extIndex > 0) {
+                        _this.currentFile = "".concat(baseFilename.substring(0, extIndex), "-").concat(_this.fileSuffix).concat(baseFilename.substring(extIndex));
+                    }
+                    else {
+                        _this.currentFile = "".concat(baseFilename, "-").concat(_this.fileSuffix);
+                    }
+                    // Create new file with start log
+                    fs.writeFileSync(_this.file(), endWithNewLine(_this.startLog.replace("%DATETIME%", _this.useServerTime ? new Date().toString() : new Date().toUTCString())));
+                }
+            }
+            catch (error) {
+                console.error("Failed to check file size:", error);
             }
         };
         /**
@@ -140,6 +176,8 @@ var LogFile = /** @class */ (function () {
                 _this.logs = [];
                 _this.bufferSize = 0;
                 _this.lastFlushTime = Date.now();
+                // Check if file size exceeded after writing
+                _this.checkFileSizeAndRollover();
             }
             catch (error) {
                 console.error("Failed to flush logs:", error);
@@ -153,6 +191,7 @@ var LogFile = /** @class */ (function () {
         this.fileFormat = options.fileFormat || "log-%DATE%.log";
         this.logToConsole = options.logToConsole || false;
         this.rolloverEnabled = typeof options.rollover !== "undefined" ? options.rollover : true;
+        this.maxFileSize = (_b = options.maxFileSize) !== null && _b !== void 0 ? _b : 104857600; // 100 MB default
         this.logStr = options.logStr || "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
         this.startLog = options.startLog || "-----------------------------------------\n" +
             "------- Log Started: %DATETIME%\n" +
@@ -437,6 +476,8 @@ var LogFile = /** @class */ (function () {
             this.logs = [];
             this.bufferSize = 0;
             this.lastFlushTime = Date.now();
+            // Check if file size exceeded after writing
+            this.checkFileSizeAndRollover();
         }
         catch (error) {
             console.error("Failed to flush logs synchronously:", error);
