@@ -23,13 +23,15 @@
 #### LogFile Initialization Options ####
 ```javascript
   /* default LogFileOptions 
-   * logLevel: 0 (INFO)
+   * logLevel: 1 (INFO)
    * dir: "./logs"
    * fileFormat: "log-%DATE%.log"
    * logToConsole: false
    * rollover: true
    * maxFileSize: 104857600 (100 MB)
    * useServerTime: true
+   * registerProcessHandlers: false
+   * onError: undefined
    * logStr: "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
    * startLog: "-----------------------------------------\n" +
    *           "------- Log Started: %DATETIME%\n" +
@@ -42,7 +44,7 @@
 ```
 #### LogFile Example ####
 ```javascript
-  const { INFO, ERROR, WARN, CRITICAL, DEBUG } = LogFile;
+  const { INFO, ERROR, WARNING, CRITICAL, DEBUG } = LogFile;
   const logFile = new LogFile({ logLevel: DEBUG });
 
   logFile.start();
@@ -162,6 +164,19 @@ const logFile = new LogFile({
 - `setEndLog(string)` - Set the log file end string
 - `setUseServerTime(bool)` - Enable/disable server time
 
+### Constructor Options
+- `logLevel` - Minimum log level (default: `LogFile.INFO`)
+- `dir` - Log file directory (default: `"./logs"`)
+- `fileFormat` - Filename format (default: `"log-%DATE%.log"`)
+- `logToConsole` - Also log to console (default: `false`)
+- `rollover` - Enable date-based rollover (default: `true`)
+- `maxFileSize` - Max file size in bytes before size-based rollover (default: `104857600`)
+- `logStr` - Log entry format string
+- `startLog` - Message written when log file starts
+- `endLog` - Message written when log file ends
+- `registerProcessHandlers` - Register SIGINT/SIGTERM/exit handlers (default: `false`)
+- `onError` - Callback invoked on I/O errors: `(error: Error) => void`
+
 ### Logging Methods
 - `info(message)` - Log an info message
 - `warn(message)` - Log a warning message
@@ -176,11 +191,19 @@ const logFile = new LogFile({
 - `stop()` - Stop the logger, flush remaining logs, and clean up resources
 
 ### Forced Shutdown Protection
-The logger automatically handles various termination scenarios to ensure logs are not lost:
+The logger can optionally handle various termination scenarios to ensure logs are not lost. Set `registerProcessHandlers: true` to enable:
+
+```javascript
+const logFile = new LogFile({ 
+  logLevel: LogFile.DEBUG,
+  registerProcessHandlers: true 
+});
+```
 
 - Registers handlers for exit, SIGINT, and SIGTERM signals to flush logs
 - Automatically logs and flushes uncaught exceptions before termination
-- Critical log messages are immediately flushed to disk
+- Handlers are removed when `stop()` is called, preventing listener leaks
+- Critical log messages are always immediately flushed to disk (regardless of this option)
 
 # Testing
 

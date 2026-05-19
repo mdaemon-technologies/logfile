@@ -42,6 +42,8 @@ interface LogFileOptions {
   startLog?: LogFormat;
   endLog?: LogFormat;
   logStr?: LogFormat;
+  registerProcessHandlers?: boolean;
+  onError?: (error: Error) => void;
 }
 
 /**
@@ -74,6 +76,9 @@ class LogFile {
   private logToConsole: boolean = false;
   private logLevel: LogLevel = LogLevel.INFO;
   private useServerTime: boolean = true;
+  private registerProcessHandlers: boolean = false;
+  private handlersRegistered: boolean = false;
+  private onError?: (error: Error) => void;
   private readonly BUFFER_SIZE = 1000;
   private readonly BUFFER_TIMEOUT = 1000;
   private lastFlushTime = Date.now();
@@ -95,6 +100,8 @@ class LogFile {
     this.logToConsole = options.logToConsole || false;
     this.rolloverEnabled = typeof options.rollover !== "undefined" ? options.rollover : true;
     this.maxFileSize = options.maxFileSize ?? 104857600; // 100 MB default
+    this.registerProcessHandlers = options.registerProcessHandlers ?? false;
+    this.onError = options.onError;
     this.logStr = options.logStr || "%DATE% %TIME% | %LEVEL% | %MESSAGE%" as LogFormat;
     this.startLog = options.startLog || "-----------------------------------------\n" +
       "------- Log Started: %DATETIME%\n" +
@@ -165,7 +172,8 @@ class LogFile {
         writeFileSync(this.file(), endWithNewLine(this.startLog.replace("%DATETIME%", this.useServerTime ? new Date().toString() : new Date().toUTCString())));
       }
     } catch (error) {
-      console.error("Failed to check file size:", error);
+      if (this.onError) this.onError(error instanceof Error ? error : new Error(String(error)));
+      else console.error("Failed to check file size:", error);
     }
   }
 
@@ -189,7 +197,8 @@ class LogFile {
       // Check if file size exceeded after writing
       this.checkFileSizeAndRollover();
     } catch (error) {
-      console.error("Failed to flush logs:", error);
+      if (this.onError) this.onError(error instanceof Error ? error : new Error(String(error)));
+      else console.error("Failed to flush logs:", error);
     }
     
   }
@@ -401,6 +410,10 @@ class LogFile {
   private pushInterval: NodeJS.Timeout | null = null;
   private rolloverInterval: NodeJS.Timeout | null = null;
   private isStarted: boolean = false;
+  private _onExit: (() => void) | null = null;
+  private _onSIGINT: (() => void) | null = null;
+  private _onSIGTERM: (() => void) | null = null;
+  private _onUncaughtException: ((error: Error) => void) | null = null;
 
   /**
  * Starts the logger by initializing the log directory and files.
@@ -436,26 +449,32 @@ class LogFile {
       this.rolloverInterval = setInterval(this.rollOver, 5000);
     }
 
-    // Register handlers for process termination signals
-    process.on('exit', () => this.pushLogs());
-    process.on('SIGINT', () => {
-      this.pushLogs();
-      this.stop();
-      process.exit(0);
-    });
-    process.on('SIGTERM', () => {
-      this.pushLogs();
-      this.stop();
-      process.exit(0);
-    });
-    
-    // Handle uncaught exceptions
-    process.on('uncaughtException', (error) => {
-      this.critical('Uncaught Exception:', error);
-      this.pushLogs();
-      this.stop();
-      process.exit(1);
-    });
+    // Register handlers for process termination signals (opt-in)
+    if (this.registerProcessHandlers && !this.handlersRegistered) {
+      this._onExit = () => this.pushLogs();
+      this._onSIGINT = () => {
+        this.pushLogs();
+        this.stop();
+        process.exit(0);
+      };
+      this._onSIGTERM = () => {
+        this.pushLogs();
+        this.stop();
+        process.exit(0);
+      };
+      this._onUncaughtException = (error: Error) => {
+        this.critical('Uncaught Exception:', error);
+        this.pushLogs();
+        this.stop();
+        process.exit(1);
+      };
+
+      process.on('exit', this._onExit);
+      process.on('SIGINT', this._onSIGINT);
+      process.on('SIGTERM', this._onSIGTERM);
+      process.on('uncaughtException', this._onUncaughtException);
+      this.handlersRegistered = true;
+    }
 
     this.isStarted = true;
     return existsSync(this.file());
@@ -481,6 +500,15 @@ class LogFile {
       this.rolloverInterval = null;
     }
 
+    // Remove process handlers if registered
+    if (this.handlersRegistered) {
+      if (this._onExit) process.removeListener('exit', this._onExit);
+      if (this._onSIGINT) process.removeListener('SIGINT', this._onSIGINT);
+      if (this._onSIGTERM) process.removeListener('SIGTERM', this._onSIGTERM);
+      if (this._onUncaughtException) process.removeListener('uncaughtException', this._onUncaughtException);
+      this.handlersRegistered = false;
+    }
+
     if (!existsSync(this.dir)) {
       return true;
     }
@@ -497,6 +525,7 @@ class LogFile {
       this.currentFile = "";
 
     } catch (ex) {
+      if (this.onError) this.onError(ex instanceof Error ? ex : new Error(String(ex)));
       return false;
     }
 
@@ -535,7 +564,8 @@ class LogFile {
       // Check if file size exceeded after writing
       this.checkFileSizeAndRollover();
     } catch (error) {
-      console.error("Failed to flush logs synchronously:", error);
+      if (this.onError) this.onError(error instanceof Error ? error : new Error(String(error)));
+      else console.error("Failed to flush logs synchronously:", error);
     }
   }
 
@@ -561,7 +591,7 @@ class LogFile {
         .replace("%DATE%", getDate())
         .replace("%TIME%", getTime())
         .replace("%LEVEL%", this.logLevelToString(level))
-        .replace("%MESSAGE%", message.replace(/\n|\r|\t/g, ""));
+        .replace("%MESSAGE%", message.replace(/[\x00-\x1F\x7F\x9B]|\x1B\[[0-?]*[ -/]*[@-~]/g, ""));
 
       this.addToLogs(logThis);
 
@@ -572,6 +602,7 @@ class LogFile {
       this.rollOver();
 
     } catch (ex) {
+      if (this.onError) this.onError(ex instanceof Error ? ex : new Error(String(ex)));
       return false;
     }
 

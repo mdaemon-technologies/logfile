@@ -4,7 +4,7 @@ module.exports = {
   setupFilesAfterEnv: ['./jest-setup.js'],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
-      isolatedModules: true,
+      tsconfig: './tsconfig.json',
     }]
   },
   moduleNameMapper: {
