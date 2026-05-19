@@ -1,6 +1,6 @@
 {
   "name": "@mdaemon/logfile",
-  "version": "3.6.0",
+  "version": "3.6.1",
   "description": "A node logging utility",
   "type": "module",
   "main": "dist/logfile.cjs",
@@ -55,5 +55,12 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/logfile.mjs",
+      "require": "./dist/logfile.cjs",
+      "types": "./dist/logfile.d.ts"
+    }
+  }
 }
