@@ -1,44 +1,27 @@
 export interface LogFileOptions {
+  logLevel?: number;
   dir?: string;
-  file?: string;
+  fileFormat?: string;
   rollover?: boolean;
   maxFileSize?: number;
+  logToConsole?: boolean;
   startLog?: string;
   endLog?: string;
   logStr?: string;
-  fileFormat?: string;
-  logLevel?: number;
-  logToConsole?: boolean;
+  registerProcessHandlers?: boolean;
+  onError?: (error: Error) => void;
 }
 
 export default class LogFile {
-  private date: string;
-  private currentFile: string;
-  private logs: string[];
-  private dir: string;
-  private fileFormat: string;
-  private logStr: string;
-  private logLevel: number;
-  private logToConsole: boolean;
-  private startLog: string;
-  private endLog: string;
-  private rolloverEnabled: boolean;
-  private pushInterval: NodeJS.Timer;
-  private rolloverInterval: NodeJS.Timer;
-  private maxFileSize: number;
-  private fileSuffix: number;
-  static INFO: number;
-  static WARNING: number;
-  static ERROR: number;
-  static CRITICAL: number;
-  static DEBUG: number;
+  static readonly DEBUG: number;
+  static readonly INFO: number;
+  static readonly WARNING: number;
+  static readonly ERROR: number;
+  static readonly CRITICAL: number;
   constructor(options: LogFileOptions);
-  private rollover();
-  private pushLogs();
-  private logLevelToString(level: number);
-  private checkFileSizeAndRollover();
   setLogLevel(level: number): void;
   getLogLevel(): number;
+  setLogDir(dir: string): void;
   getLogDir(): string;
   setFileFormat(fileFormat: string): void;
   getFileFormat(): string;
@@ -52,16 +35,18 @@ export default class LogFile {
   getEndLog(): string;
   setRollover(rollover: boolean): void;
   getRollover(): boolean;
+  setUseServerTime(useServerTime: boolean): void;
   getHelp(): void;
   file(): string;
   lastFile(): string;
-  start(): void;
-  stop(): void;
-  log(message: string, level: number): boolean;
+  start(): boolean;
+  stop(): boolean;
+  flushSync(): void;
+  log(message: string, level?: number): boolean;
+  debug(...args: any[]): boolean;
   info(...args: any[]): boolean;
   warning(...args: any[]): boolean;
   warn(...args: any[]): boolean;
   error(...args: any[]): boolean;
   critical(...args: any[]): boolean;
-  debug(...args: any[]): boolean;
 }

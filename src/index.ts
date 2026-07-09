@@ -22,15 +22,18 @@ const levelMap: Record<number, string> = {
 
 /**
  * Interface for log file options.
- * 
- * @property dir - Optional directory to write log files to. Defaults to current working directory.
- * @property file - Name of log file. Defaults to 'app.log'.  
- * @property rollover - Whether to rollover the log file when it reaches a max size. Default false.
+ *
+ * @property logLevel - Minimum log level to record. Default LogLevel.INFO (1).
+ * @property dir - Optional directory to write log files to. Default "./logs".
+ * @property fileFormat - Log file name format. Default "log-%DATE%.log".
+ * @property rollover - Whether to rollover to a new log file when the date changes. Default true.
  * @property maxFileSize - Maximum file size in bytes before triggering a size-based rollover. Default 104857600 (100 MB). When exceeded, creates a new file with a numeric suffix (e.g., log-2024-01-01-1.log, log-2024-01-01-2.log).
- * @property logToConsole - Whether to also log to the console. Default false. 
+ * @property logToConsole - Whether to also log to the console. Default false.
  * @property startLog - Message to log on application start.
  * @property endLog - Message to log on application end.
- * @property logStr - Format string for log messages. Defaults to '[{timestamp}] {level}: {msg}'.
+ * @property logStr - Format string for log messages. Default "%DATE% %TIME% | %LEVEL% | %MESSAGE%".
+ * @property registerProcessHandlers - Whether to register exit/SIGINT/SIGTERM/uncaughtException handlers that flush logs. Default false.
+ * @property onError - Callback invoked when a file I/O error occurs.
  */
 interface LogFileOptions {
   logLevel?: LogLevel;
@@ -50,15 +53,17 @@ interface LogFileOptions {
  * LogFile class to handle writing log messages to file.
  *
  * @param options - Options for configuring the log file.
- * @param options.logLevel - Log level to log at. Default 0.
+ * @param options.logLevel - Minimum log level to record. Default LogLevel.INFO (1).
  * @param options.dir - Directory to write log files. Default ./logs.
- * @param options.fileFormat - Log file name format. Default log-%DATE%.log. 
- * @param options.rollover - Whether to rollover log when size limit reached.
+ * @param options.fileFormat - Log file name format. Default log-%DATE%.log.
+ * @param options.rollover - Whether to rollover to a new log file when the date changes. Default true.
  * @param options.maxFileSize - Maximum file size in bytes before triggering size-based rollover. Default 104857600 (100 MB). When exceeded, a new file is created with an incremental numeric suffix (e.g., log-2024-01-01-1.log, log-2024-01-01-2.log).
- * @param options.logToConsole - Whether to also log to console. 
+ * @param options.logToConsole - Whether to also log to console. Default false.
  * @param options.startLog - Message logged on start.
- * @param options.endLog - Message logged on end.  
+ * @param options.endLog - Message logged on end.
  * @param options.logStr - Format for log messages.
+ * @param options.registerProcessHandlers - Whether to register process termination handlers that flush logs. Default false.
+ * @param options.onError - Callback invoked when a file I/O error occurs.
  *
  * @returns LogFile instance.
  */
@@ -573,7 +578,7 @@ class LogFile {
  * Logs a message to the log file with the given log level. 
  * 
  * @param message - The message to log.
- * @param level - The log level, defaults to 0.
+ * @param level - The log level, defaults to LogLevel.DEBUG (0).
  * @returns True if the log was successful, false otherwise.
  */
   log(message: string, level: LogLevel = LogLevel.DEBUG): boolean {

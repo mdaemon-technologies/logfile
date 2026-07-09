@@ -10,12 +10,12 @@
 
 # Node CommonJS #
 ```javascript
-    const LogFile = require("@mdaemon/logfile/dist/logfile.cjs");
+    const LogFile = require("@mdaemon/logfile");
 ```
 
 # Node Modules #
 ```javascript
-    import LogFile from "@mdaemon/logfile/dist/logfile.mjs";
+    import LogFile from "@mdaemon/logfile";
 ```
 
 ### LogFile ###
@@ -29,7 +29,6 @@
    * logToConsole: false
    * rollover: true
    * maxFileSize: 104857600 (100 MB)
-   * useServerTime: true
    * registerProcessHandlers: false
    * onError: undefined
    * logStr: "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
@@ -49,7 +48,7 @@
 
   logFile.start();
 
-  logFile.log("There was an error", 2);
+  logFile.log("There was an error", ERROR);
 
   logFile.stop();
   /* file result 
@@ -89,13 +88,22 @@
   // set the end log string
   logFile.setEndLog("-----------------------------------------\n");
 
+  // set whether timestamps use server local time (true, default) or UTC (false)
+  logFile.setUseServerTime(true);
+
   // log help to the console
   logFile.getHelp();
+
+  // log with an explicit level (defaults to DEBUG when omitted)
+  logFile.log("This is an error log", LogFile.ERROR);
 
   // log to info
   logFile.info("This is an info log");
 
-  // log to warn
+  // log to warning
+  logFile.warning("This is a warning log");
+
+  // warn is an alias for warning
   logFile.warn("This is a warn log");
 
   // log to error
@@ -153,16 +161,26 @@ const logFile = new LogFile({
 
 #### LogFile Methods ####
 
+### Log Levels
+Available as static constants on the `LogFile` class:
+- `LogFile.DEBUG` = 0
+- `LogFile.INFO` = 1
+- `LogFile.WARNING` = 2
+- `LogFile.ERROR` = 3
+- `LogFile.CRITICAL` = 4
+
+Messages below the configured `logLevel` are not written.
+
 ### Configuration Methods
-- `setLogStr(format)` - Set the log entry format string
-- `setLogDir(path)` - Set the directory for log files
-- `setRollover(boolean)` - Enable/disable daily log file rollover
-- `setLogLevel(level)` - Set the minimum log level
-- `setFileFormat(format)` - Set the log filename format
-- `setLogToConsole(bool)` - Enable/disable console output
-- `setStartLog(string)` - Set the log file start string
-- `setEndLog(string)` - Set the log file end string
-- `setUseServerTime(bool)` - Enable/disable server time
+- `setLogStr(format)` / `getLogStr()` - Set/get the log entry format string
+- `setLogDir(path)` / `getLogDir()` - Set/get the directory for log files
+- `setRollover(boolean)` / `getRollover()` - Enable/disable daily log file rollover
+- `setLogLevel(level)` / `getLogLevel()` - Set/get the minimum log level
+- `setFileFormat(format)` / `getFileFormat()` - Set/get the log filename format
+- `setLogToConsole(bool)` / `getLogToConsole()` - Enable/disable console output
+- `setStartLog(string)` / `getStartLog()` - Set/get the log file start string
+- `setEndLog(string)` / `getEndLog()` - Set/get the log file end string
+- `setUseServerTime(bool)` - Use server local time (default: `true`) or UTC for timestamps
 
 ### Constructor Options
 - `logLevel` - Minimum log level (default: `LogFile.INFO`)
@@ -178,15 +196,21 @@ const logFile = new LogFile({
 - `onError` - Callback invoked on I/O errors: `(error: Error) => void`
 
 ### Logging Methods
-- `info(message)` - Log an info message
-- `warn(message)` - Log a warning message
-- `error(message)` - Log an error message
-- `critical(message)` - Log a critical message (automatically flushes to disk)
-- `debug(message)` - Log a debug message
+- `log(message, level)` - Log a message at the given level (defaults to `LogFile.DEBUG`)
+- `debug(...args)` - Log a debug message
+- `info(...args)` - Log an info message
+- `warning(...args)` - Log a warning message
+- `warn(...args)` - Alias for `warning`
+- `error(...args)` - Log an error message
+- `critical(...args)` - Log a critical message (automatically flushes to disk)
+
+All logging methods return `true` on success and `false` on failure. The level-specific methods accept multiple arguments; non-string arguments are stringified and joined with spaces.
 
 ### Utility Methods
 - `getHelp()` - Display help information
 - `flushSync()` - Force immediate synchronous write of buffered logs to disk
+- `file()` - Get the path to the current log file
+- `lastFile()` - Get the path to the previous log file
 - `start()` - Initialize the logger and set up shutdown handlers
 - `stop()` - Stop the logger, flush remaining logs, and clean up resources
 
