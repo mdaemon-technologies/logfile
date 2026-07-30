@@ -1,6 +1,6 @@
 {
   "name": "@mdaemon/logfile",
-  "version": "3.6.3",
+  "version": "3.7.0",
   "description": "A node logging utility",
   "type": "module",
   "main": "dist/logfile.cjs",
@@ -55,7 +55,8 @@
     "typescript": "^6.0.0"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md"
   ],
   "exports": {
     ".": {

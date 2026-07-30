@@ -14,12 +14,15 @@ type LogFormat = `${string}${LogMacro}${string}` | string | `${LogMacro}`;
  * @property dir - Optional directory to write log files to. Default "./logs".
  * @property fileFormat - Log file name format. Default "log-%DATE%.log".
  * @property rollover - Whether to rollover to a new log file when the date changes. Default true.
- * @property maxFileSize - Maximum file size in bytes before triggering a size-based rollover. Default 104857600 (100 MB). When exceeded, creates a new file with a numeric suffix (e.g., log-2024-01-01-1.log, log-2024-01-01-2.log).
+ * @property maxFileSize - Maximum file size in bytes before triggering a size-based rollover. Default 104857600 (100 MB). When exceeded, creates a new file with a numeric suffix (e.g., log-2024-01-01-1.log, log-2024-01-01-2.log). Set to 0 (or any value <= 0) to disable size-based rollover.
+ * @property maxBufferEntries - Maximum number of entries retained after a failed write. Default 10000. Once reached, the oldest entries are discarded so a failing disk cannot exhaust memory. This bounds the retry backlog only; during normal operation the buffer is flushed well before it grows this large.
  * @property logToConsole - Whether to also log to the console. Default false.
  * @property startLog - Message to log on application start.
  * @property endLog - Message to log on application end.
  * @property logStr - Format string for log messages. Default "%DATE% %TIME% | %LEVEL% | %MESSAGE%".
  * @property registerProcessHandlers - Whether to register exit/SIGINT/SIGTERM/uncaughtException handlers that flush logs. Default false.
+ * @property keepProcessAlive - Whether the flush and rollover timers keep the Node process alive. Default true, matching long-standing behavior. Set false for short-lived scripts that should exit once their work is done: the timers are unref'd so they cannot hold the event loop open, and buffered entries are flushed on process exit.
+ * @property suppressPathWarnings - Silences the one-time console warning issued when the log directory contains a ".." segment. Default false. Set true when the path is deliberately relative and hard-coded.
  * @property onError - Callback invoked when a file I/O error occurs.
  */
 interface LogFileOptions {
@@ -28,11 +31,14 @@ interface LogFileOptions {
     fileFormat?: string;
     rollover?: boolean;
     maxFileSize?: number;
+    maxBufferEntries?: number;
     logToConsole?: boolean;
     startLog?: LogFormat;
     endLog?: LogFormat;
     logStr?: LogFormat;
     registerProcessHandlers?: boolean;
+    keepProcessAlive?: boolean;
+    suppressPathWarnings?: boolean;
     onError?: (error: Error) => void;
 }
 /**
@@ -43,12 +49,14 @@ interface LogFileOptions {
  * @param options.dir - Directory to write log files. Default ./logs.
  * @param options.fileFormat - Log file name format. Default log-%DATE%.log.
  * @param options.rollover - Whether to rollover to a new log file when the date changes. Default true.
- * @param options.maxFileSize - Maximum file size in bytes before triggering size-based rollover. Default 104857600 (100 MB). When exceeded, a new file is created with an incremental numeric suffix (e.g., log-2024-01-01-1.log, log-2024-01-01-2.log).
+ * @param options.maxFileSize - Maximum file size in bytes before triggering size-based rollover. Default 104857600 (100 MB). When exceeded, a new file is created with an incremental numeric suffix (e.g., log-2024-01-01-1.log, log-2024-01-01-2.log). Set to 0 (or any value <= 0) to disable size-based rollover.
+ * @param options.maxBufferEntries - Maximum number of entries retained after a failed write. Default 10000.
  * @param options.logToConsole - Whether to also log to console. Default false.
  * @param options.startLog - Message logged on start.
  * @param options.endLog - Message logged on end.
  * @param options.logStr - Format for log messages.
  * @param options.registerProcessHandlers - Whether to register process termination handlers that flush logs. Default false.
+ * @param options.keepProcessAlive - Whether the timers keep the Node process alive. Default true.
  * @param options.onError - Callback invoked when a file I/O error occurs.
  *
  * @returns LogFile instance.
@@ -69,12 +77,21 @@ declare class LogFile {
     private useServerTime;
     private registerProcessHandlers;
     private handlersRegistered;
+    private keepProcessAlive;
+    private suppressPathWarnings;
+    private warnedAboutPath;
     private onError?;
     private readonly BUFFER_SIZE;
     private readonly BUFFER_TIMEOUT;
+    private readonly FLUSH_RETRY_INTERVAL;
+    private readonly ROLLOVER_INTERVAL;
     private lastFlushTime;
+    private lastFlushError;
     private bufferSize;
     private maxBufferSize;
+    private maxBufferEntries;
+    private droppedLogs;
+    private reportingError;
     private maxFileSize;
     private fileSuffix;
     static readonly DEBUG = LogLevel.DEBUG;
@@ -83,6 +100,73 @@ declare class LogFile {
     static readonly ERROR = LogLevel.ERROR;
     static readonly CRITICAL = LogLevel.CRITICAL;
     constructor(options: LogFileOptions);
+    /**
+   * Warns once when the log directory contains a ".." segment.
+   *
+   * A relative path that climbs out of its starting directory is a legitimate
+   * configuration and is not blocked. The risk is not the path itself, it is
+   * where the path came from: if any part of it is derived from user input,
+   * request data, or anything else an attacker can influence, the attacker
+   * chooses where this process writes files. Consumers are expected to keep the
+   * directory hard-coded; this notice exists so that an accidental ".." is
+   * visible during development instead of shipping unnoticed.
+   *
+   * Only "." and ".." path segments count. A directory named "..data" or
+   * "archive..old" is an ordinary name and is not reported.
+   *
+   * @param dir - The directory about to be used
+   */
+    private warnOnTraversalPath;
+    /**
+   * Releases a timer's hold on the event loop when keepProcessAlive is false.
+   *
+   * An unref'd interval still fires for as long as the process is running; it
+   * simply stops being a reason for the process to stay running.
+   *
+   * @param interval - The interval to release, if any
+   */
+    private releaseInterval;
+    /**
+   * Reports a failure through the onError callback, or to the console when no
+   * callback is configured.
+   *
+   * The callback is application code, so it is isolated in two ways:
+   * - Reentrancy is blocked. A callback that logs (a very natural thing to
+   *   write) would otherwise re-enter the logger, and if that nested call also
+   *   fails or drops an entry it reports again, amplifying without bound.
+   * - Throwing is contained. The callback is invoked from timer-driven flushes
+   *   with no try/catch above them, so an exception would surface as an
+   *   uncaught exception rather than as a logging failure.
+   *
+   * @param error - The failure to report
+   * @param fallback - Console prefix used when no callback is configured
+   */
+    private reportError;
+    /**
+   * The current timestamp, honouring the useServerTime setting.
+   */
+    private timestamp;
+    /**
+   * The current date string used for file naming and rollover comparisons.
+   *
+   * start() and rollOver() must agree on this, otherwise a logger configured
+   * with useServerTime false triggers a spurious rollover on the first timer
+   * tick whenever the local and UTC dates differ.
+   */
+    private today;
+    /**
+   * Renders a start or end banner, expanding %DATETIME% and guaranteeing a trailing newline.
+   */
+    private banner;
+    /**
+   * Opens the current file with a start banner.
+   *
+   * Appends when the file already exists rather than truncating it. A rollover
+   * can land on an existing file in two ways: a fileFormat without %DATE%
+   * produces the same name every day, and a suffixed name may already be on
+   * disk from an earlier run. Truncating would discard those logs.
+   */
+    private openCurrentFile;
     /**
    * Rollover to a new log file if the date has changed.
    *
@@ -102,9 +186,20 @@ declare class LogFile {
    */
     private checkFileSizeAndRollover;
     /**
+   * Discards the oldest buffered entries once the buffer exceeds
+   * maxBufferEntries, keeping memory bounded while writes are failing.
+   * Every discarded entry is counted and reported.
+   */
+    private enforceBufferLimit;
+    /**
    * If there are logs buffered in memory, write them
    * to the current log file. Clear the buffer after
    * writing.
+   *
+   * When the write fails the entries are put back so a transient failure does
+   * not lose them, but the buffer is capped at maxBufferEntries so a persistent
+   * failure (full disk, revoked permissions, deleted directory) cannot grow
+   * without bound.
    */
     private pushLogs;
     /**
@@ -128,6 +223,15 @@ declare class LogFile {
     getLogLevel(): LogLevel;
     /**
    * Sets the log directory.
+   *
+   * When the logger is already running the directory is created immediately,
+   * otherwise every subsequent write would fail against a path that does not
+   * exist yet.
+   *
+   * Note: the directory is used as given, so any path the process can write to
+   * is allowed. Applications that build it from external input are responsible
+   * for validating it first; a ".." segment triggers a one-time console warning
+   * to make an accidental one visible.
    *
    * @param dir - The path to the log directory.
    */
@@ -199,7 +303,11 @@ declare class LogFile {
    */
     getEndLog(): LogFormat;
     /**
-   * Sets whether to enable rollover when the maximum log size is reached.
+   * Sets whether to roll over to a new log file when the date changes.
+   *
+   * Starts or stops the rollover timer to match. Without this, enabling rollover
+   * on a running logger left it unarmed, so an idle process would not roll over
+   * until something was logged; disabling it left the timer running.
    *
    * @param rollover Whether to enable log rollover.
    */
@@ -211,14 +319,25 @@ declare class LogFile {
    */
     getRollover(): boolean;
     /**
-     * Sets whether to enable useServerTime
+     * Sets whether timestamps use server local time or UTC.
      *
-     * @param useServerTime Whether to enable useServerTime.
+     * Applies to every timestamp the logger produces: the %DATE%, %TIME% and
+     * %DATETIME% macros in log entries, the %DATETIME% in start and end banners,
+     * and the date used for file naming and rollover.
+     *
+     * @param useServerTime True for server local time (default), false for UTC.
      */
     setUseServerTime(useServerTime: boolean): void;
     /**
-   * Logs help information to the console about log levels, log string macros,
-   * and the default log directory.
+   * Gets whether timestamps use server local time or UTC.
+   *
+   * @returns True when using server local time (the default), false for UTC.
+   */
+    getUseServerTime(): boolean;
+    /**
+   * Logs help information to the console: log levels, the macros available in
+   * the entry format and the file name format, and the constructor options with
+   * their defaults.
    */
     getHelp(): void;
     /**
@@ -240,13 +359,15 @@ declare class LogFile {
     private _onSIGINT;
     private _onSIGTERM;
     private _onUncaughtException;
+    private _onExitFlush;
     /**
    * Starts the logger by initializing the log directory and files.
    *
-   * @param dir - The directory to store log files.
-   * @param fileFormat - The file naming format for log files.
-   * @param rollover - Whether to enable log file rollover.
+   * Configuration comes from the constructor options and the setters, not from
+   * arguments. Calling this on an already-started logger is a no-op.
+   *
    * @returns True if the log file was initialized successfully, false otherwise.
+   *          Failures are reported through onError rather than thrown.
    */
     start(): boolean;
     /**
@@ -256,6 +377,13 @@ declare class LogFile {
    */
     stop(): boolean;
     private addToLogs;
+    /**
+     * Gets the number of buffered entries discarded because the buffer limit
+     * was reached while writes were failing.
+     *
+     * @returns The total count of discarded log entries.
+     */
+    getDroppedLogs(): number;
     /**
      * Synchronously flushes logs to disk immediately.
      * Use sparingly as this blocks the event loop.

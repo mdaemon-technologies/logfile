@@ -4,11 +4,14 @@ export interface LogFileOptions {
   fileFormat?: string;
   rollover?: boolean;
   maxFileSize?: number;
+  maxBufferEntries?: number;
   logToConsole?: boolean;
   startLog?: string;
   endLog?: string;
   logStr?: string;
   registerProcessHandlers?: boolean;
+  keepProcessAlive?: boolean;
+  suppressPathWarnings?: boolean;
   onError?: (error: Error) => void;
 }
 
@@ -36,6 +39,8 @@ export default class LogFile {
   setRollover(rollover: boolean): void;
   getRollover(): boolean;
   setUseServerTime(useServerTime: boolean): void;
+  getUseServerTime(): boolean;
+  getDroppedLogs(): number;
   getHelp(): void;
   file(): string;
   lastFile(): string;

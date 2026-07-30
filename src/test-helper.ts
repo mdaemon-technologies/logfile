@@ -1,38 +1,10 @@
 import * as fs from 'fs';
+import { getDate, getTime, getDateTime, endWithNewLine, stringifyArgs } from './util';
 
-// Re-export utility functions used by the source index.ts that wouldn't be available in tests
-export const getDate = (): string => {
-  const now = new Date();
-  const month: number = now.getMonth() + 1;
-  const monthStr = month < 10 ? `0${month}` : `${month}`;
-  const day: number = now.getDate();
-  const dayStr = day < 10 ? `0${day}` : `${day}`;
-  return `${now.getFullYear()}-${monthStr}-${dayStr}`;
-};
-
-export const getTime = (): string => {
-  return new Date().toTimeString().substring(0, 8);
-};
-
-export const getDateTime = (): string => {
-  const now = new Date();
-  return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()} ${now.toTimeString().substring(0, 8)}`;
-};
-
-export const endWithNewLine = (str: string): string => 
-  str.endsWith("\n") ? str : str + "\n";
-
-export const stringifyArgs = (arg: Error | Object | any): string | undefined => {
-  if (arg instanceof Error) {
-    return arg.stack;
-  }
-  
-  if (arg instanceof Object) {
-    return JSON.stringify(arg);
-  }
-  
-  return arg;
-};
+// Re-export utility functions used by the source index.ts that wouldn't be
+// available in tests. These are the real implementations rather than copies:
+// duplicating them let the copies drift from the code under test.
+export { getDate, getTime, getDateTime, endWithNewLine, stringifyArgs };
 
 // Function to dynamically load the appropriate module based on environment variable
 async function getLogFileModule() {

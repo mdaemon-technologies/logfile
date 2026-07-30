@@ -28,8 +28,11 @@
    * fileFormat: "log-%DATE%.log"
    * logToConsole: false
    * rollover: true
-   * maxFileSize: 104857600 (100 MB)
+   * maxFileSize: 104857600 (100 MB, 0 = unlimited)
+   * maxBufferEntries: 10000
    * registerProcessHandlers: false
+   * keepProcessAlive: true
+   * suppressPathWarnings: false
    * onError: undefined
    * logStr: "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
    * startLog: "-----------------------------------------\n" +
@@ -137,6 +140,9 @@ The logger supports two types of automatic file rollover:
   - Second rollover creates: `log-2024-01-01-2.log`
   - And so on...
 - The suffix counter resets to 0 when a date-based rollover occurs
+- Set `maxFileSize: 0` to disable size-based rollover entirely (log files grow without limit)
+- A rollover never truncates: if the target file already exists (a `fileFormat` without `%DATE%`, or a suffixed file left by an earlier run), it is appended to
+- A `maxFileSize` smaller than the start banner causes a rollover on every flush; keep it comfortably above the banner size
 
 **Combined Behavior**:
 - Both rollover types work together seamlessly
@@ -180,7 +186,8 @@ Messages below the configured `logLevel` are not written.
 - `setLogToConsole(bool)` / `getLogToConsole()` - Enable/disable console output
 - `setStartLog(string)` / `getStartLog()` - Set/get the log file start string
 - `setEndLog(string)` / `getEndLog()` - Set/get the log file end string
-- `setUseServerTime(bool)` - Use server local time (default: `true`) or UTC for timestamps
+- `setUseServerTime(bool)` / `getUseServerTime()` - Use server local time (default: `true`) or UTC for timestamps. Applies to the `%DATE%`, `%TIME%` and `%DATETIME%` macros in log entries, the start/end banners, and the date used for file naming and rollover
+- `getDroppedLogs()` - Number of buffered entries discarded because `maxBufferEntries` was reached
 
 ### Constructor Options
 - `logLevel` - Minimum log level (default: `LogFile.INFO`)
@@ -188,11 +195,14 @@ Messages below the configured `logLevel` are not written.
 - `fileFormat` - Filename format (default: `"log-%DATE%.log"`)
 - `logToConsole` - Also log to console (default: `false`)
 - `rollover` - Enable date-based rollover (default: `true`)
-- `maxFileSize` - Max file size in bytes before size-based rollover (default: `104857600`)
+- `maxFileSize` - Max file size in bytes before size-based rollover (default: `104857600`). Use `0` for no limit
+- `maxBufferEntries` - Max entries retained after a failed write (default: `10000`)
 - `logStr` - Log entry format string
 - `startLog` - Message written when log file starts
 - `endLog` - Message written when log file ends
 - `registerProcessHandlers` - Register SIGINT/SIGTERM/exit handlers (default: `false`)
+- `keepProcessAlive` - Whether the timers keep the Node process alive (default: `true`)
+- `suppressPathWarnings` - Silence the one-time warning about a `..` segment in the log directory (default: `false`)
 - `onError` - Callback invoked on I/O errors: `(error: Error) => void`
 
 ### Logging Methods
@@ -207,7 +217,7 @@ Messages below the configured `logLevel` are not written.
 All logging methods return `true` on success and `false` on failure. The level-specific methods accept multiple arguments; non-string arguments are stringified and joined with spaces.
 
 ### Utility Methods
-- `getHelp()` - Display help information
+- `getHelp()` - Print log levels, the available macros, and every constructor option with its default
 - `flushSync()` - Force immediate synchronous write of buffered logs to disk
 - `file()` - Get the path to the current log file
 - `lastFile()` - Get the path to the previous log file
@@ -228,6 +238,95 @@ const logFile = new LogFile({
 - Automatically logs and flushes uncaught exceptions before termination
 - Handlers are removed when `stop()` is called, preventing listener leaks
 - Critical log messages are always immediately flushed to disk (regardless of this option)
+
+### Process Lifetime
+A running logger uses two timers: one to flush buffered entries, one to check for a date rollover. By default these keep the Node process alive, which is the long-standing behavior and is what a long-running service wants. It only matters for a short-lived script that finishes its work and expects to exit on its own — a pending timer is pending work, so the process will not end until `stop()` is called.
+
+Set `keepProcessAlive: false` for those scripts:
+
+```javascript
+const logFile = new LogFile({ keepProcessAlive: false });
+logFile.start();
+logFile.info("done");
+// the process exits normally here; the buffered entry is flushed on exit
+```
+
+The timers are `unref`'d so they no longer hold the event loop open — they still fire normally while the process is running — and buffered entries are flushed on process exit so nothing is lost. This has no effect on a process that exits via `process.exit()`, a signal, or a crash; those already close regardless.
+
+### Handling of Untrusted Log Content
+Log messages routinely contain user-supplied data, so the logger treats every message as untrusted:
+
+- **Line forging is prevented.** Control characters, including newlines, are stripped from messages, so a message cannot introduce what looks like a separate log entry.
+- **Escape sequences are removed.** Full ANSI/CSI sequences are stripped rather than just the `ESC` byte, so console output cannot be styled or manipulated by log content.
+- **Bidirectional overrides are removed**, along with line/paragraph separators and the BOM, so log text cannot be visually reordered or hidden in an editor or terminal.
+- **Replacement patterns are literal.** ``$` ``, `$&`, `$'`, and `$$` in a message are written as-is and cannot duplicate or delete parts of the rendered line.
+- **Macros in a message are not expanded.** `%MESSAGE%` is substituted last, so a message containing `%DATE%` or `%LEVEL%` is written literally.
+- **Serialization never throws.** Circular structures render as `[Circular]`, `BigInt` values as `123n`, and values that cannot be serialized at all as `[Unserializable]`. Symbols and null-prototype objects are handled too. Logging an object such as an HTTP request will not crash the caller.
+
+Two things remain the application's responsibility:
+
+- `dir` is used as given — see [Log Directory Warnings](#log-directory-warnings) below. (`fileFormat` is always reduced to a single path component, so it cannot escape the log directory.)
+- Sensitive values are written verbatim. Redact secrets before logging them.
+
+### Log Directory Warnings
+The log directory is used exactly as provided. Any path the process can write to is allowed, including relative paths that climb upward with `..`, because that is a legitimate way to configure a logger.
+
+The risk is not the path — it is where the path came from. Compare:
+
+```javascript
+// Fine: the value is a constant in your source
+const logFile = new LogFile({ dir: "../shared-logs" });
+
+// Vulnerability: part of the path comes from outside
+const logFile = new LogFile({ dir: `./logs/${req.query.tenant}` });
+// tenant = "../../../home/user/.ssh" redirects every write there
+```
+
+In the second case an attacker chooses where your process writes files. This library cannot tell the two apart — both arrive as an ordinary string — so instead it makes the situation visible: if the directory contains a `..` segment, a warning is printed once per logger.
+
+```
+[logfile] Log directory "./logs/../../etc" contains a ".." segment, so it resolves
+outside the directory it starts from. That is supported and is safe when the value is
+hard-coded. If any part of it comes from user input, request data, or other untrusted
+configuration, this is a path traversal risk: an attacker could direct log writes to
+any location this process can write to. Pass suppressPathWarnings: true to silence
+this notice.
+```
+
+The warning is triggered by the constructor and by `setLogDir()`, fires at most once per logger, and never changes behavior — logging to that path still works. Only a whole `..` path segment counts; a directory named `..data` or `archive..old` is an ordinary name.
+
+**Keep the directory hard-coded.** If you must build it from a variable, validate that the resolved path stays inside a directory you control before passing it in:
+
+```javascript
+const path = require("path");
+
+const root = path.resolve("./logs");
+const target = path.resolve(root, tenant);
+if (target !== root && !target.startsWith(root + path.sep)) {
+  throw new Error("log directory escaped the log root");
+}
+```
+
+Once you have confirmed the path is intentional, silence the notice with `suppressPathWarnings: true`.
+
+### Behavior When Writes Fail
+If a write fails — a full disk, revoked permissions, a removed directory — buffered entries are retained and retried, so a transient failure does not lose logs. To keep a persistent failure from exhausting memory, the retained backlog is capped at `maxBufferEntries` (default `10000`) and the oldest entries beyond that are discarded in batches. Each discard is reported through `onError`, and the running total is available from `getDroppedLogs()`:
+
+```javascript
+const logFile = new LogFile({
+  maxBufferEntries: 5000,
+  onError: (err) => process.stderr.write(`${err.message}\n`)
+});
+
+// later
+if (logFile.getDroppedLogs() > 0) {
+  // the log on disk is incomplete
+}
+```
+
+Every filesystem operation is reported through `onError` rather than thrown: `start()` returns `false` if the directory or file cannot be created, and a rollover that fails (a removed or unwritable directory) is reported and recovered from on a later write. Logging never crashes the host application.
+
+The `onError` callback is itself application code, so the logger protects against it too: a callback that logs will not re-enter and cascade, and a callback that throws is contained rather than escaping as an uncaught exception.
 
 # Testing
 

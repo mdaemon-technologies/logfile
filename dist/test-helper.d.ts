@@ -1,9 +1,6 @@
 import * as fs from 'fs';
-export declare const getDate: () => string;
-export declare const getTime: () => string;
-export declare const getDateTime: () => string;
-export declare const endWithNewLine: (str: string) => string;
-export declare const stringifyArgs: (arg: Error | Object | any) => string | undefined;
+import { getDate, getTime, getDateTime, endWithNewLine, stringifyArgs } from './util';
+export { getDate, getTime, getDateTime, endWithNewLine, stringifyArgs };
 declare global {
     var __TEST_HELPER_SETUP__: boolean;
     var existsSync: typeof fs.existsSync;
