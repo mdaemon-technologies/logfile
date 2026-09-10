@@ -1,1 +1,0 @@
-declare module '@mdaemon/logfile/dist/logfile.cjs'

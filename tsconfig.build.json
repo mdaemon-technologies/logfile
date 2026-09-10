@@ -1,0 +1,17 @@
+{
+  // Build-only view of the sources. tsconfig.json includes all of src/** so
+  // that ts-jest can compile the tests, which also made the build emit
+  // declarations for them: dist/unified.test.d.ts, dist/regression.test.d.ts
+  // and dist/test-helper.d.ts were all published, because package.json's
+  // `files` ships the whole dist directory.
+  //
+  // `exclude` replaces the parent's rather than adding to it, so the entries
+  // inherited from tsconfig.json are repeated here.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Nothing that ships references jest globals; the tests that do are
+    // excluded below.
+    "types": ["node"]
+  },
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/test-helper.ts"]
+}

@@ -10,15 +10,6 @@ if (process.env.TEST_TARGET === 'compiled-esm') {
   });
 }
 
-// Add helper for handling both CJS pushLogs and ESM flushSync in SIGINT handler tests
-global.__getLogMethod = (logFile) => {
-  if (process.env.TEST_TARGET === 'source' || process.env.TEST_TARGET === 'compiled-esm') {
-    return logFile.flushSync ? 'flushSync' : 'pushLogs';
-  } else {
-    return 'pushLogs';
-  }
-};
-
 // Mock exit for all tests to prevent actual process termination
 const originalExit = process.exit;
 process.exit = jest.fn(code => {

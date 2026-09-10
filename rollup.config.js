@@ -8,7 +8,9 @@ export default [
       { file: "dist/logfile.mjs", format: "es" }
     ],
     plugins: [
-      typescript()
+      // tsconfig.build.json excludes the tests, which would otherwise have
+      // their declarations emitted into dist and published with the package.
+      typescript({ tsconfig: "./tsconfig.build.json" })
     ]
   }
 ]

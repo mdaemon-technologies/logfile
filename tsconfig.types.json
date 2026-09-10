@@ -1,0 +1,19 @@
+{
+  // Type-checks type-tests/consumer.ts against the declarations the package
+  // actually publishes, resolved the way a consumer resolves them: the bare
+  // package name, through package.json's "exports" -> "types".
+  //
+  // The package shipped a hand-maintained declaration alongside the generated
+  // one, and the hand-written copy silently fell behind the implementation.
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "paths": { "@mdaemon/logfile": ["./"] },
+    "types": ["node"]
+  },
+  "include": ["type-tests/**/*"]
+}

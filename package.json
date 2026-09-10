@@ -1,23 +1,28 @@
 {
   "name": "@mdaemon/logfile",
-  "version": "3.7.0",
+  "version": "3.8.0",
   "description": "A node logging utility",
   "type": "module",
   "main": "dist/logfile.cjs",
   "module": "dist/logfile.mjs",
-  "typings": "dist/logfile.d.ts",
+  "typings": "dist/index.d.ts",
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "test": "npm run test:cjs",
-    "test:source": "cross-env TEST_TARGET=source jest --config=jest.config.cjs src/unified.test.ts",
-    "test:cjs": "cross-env TEST_TARGET=compiled-cjs jest --config=jest.config.cjs src/unified.test.ts",
-    "test:all": "npm run test:source && npm run build && npm run test:cjs",
-    "dev-test": "jest --watchAll --config=jest.config.cjs",
-    "build": "rollup -c && esbuild dist/logfile.cjs --minify --outfile=dist/logfile.cjs --allow-overwrite && esbuild dist/logfile.mjs --minify --outfile=dist/logfile.mjs --allow-overwrite",
+    "test": "npm run test:source && npm run build:bundle && npm run test:types && npm run test:cjs",
+    "test:source": "cross-env TEST_TARGET=source jest --config=jest.config.cjs",
+    "test:cjs": "cross-env TEST_TARGET=compiled-cjs jest --config=jest.config.cjs",
+    "test:min": "npm run build && npm run test:cjs",
+    "test:all": "npm run test && npm run test:min",
+    "dev-test": "cross-env TEST_TARGET=source jest --watchAll --config=jest.config.cjs",
+    "build:bundle": "rollup -c && node scripts/prune-types.mjs",
+    "build:minify": "esbuild dist/logfile.cjs --minify --outfile=dist/logfile.cjs --allow-overwrite && esbuild dist/logfile.mjs --minify --outfile=dist/logfile.mjs --allow-overwrite",
+    "build": "npm run build:bundle && npm run build:minify",
     "dev": "rollup -c -w",
-    "pub": "npm run test:all && npm publish"
+    "prepublishOnly": "npm run build",
+    "pub": "npm run test:all && npm publish",
+    "test:types": "tsc -p tsconfig.types.json && node scripts/prune-types.mjs --check"
   },
   "repository": {
     "type": "git",
@@ -60,7 +65,7 @@
   ],
   "exports": {
     ".": {
-      "types": "./dist/logfile.d.ts",
+      "types": "./dist/index.d.ts",
       "import": "./dist/logfile.mjs",
       "require": "./dist/logfile.cjs"
     }

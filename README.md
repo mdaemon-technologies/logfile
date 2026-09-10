@@ -179,10 +179,10 @@ Messages below the configured `logLevel` are not written.
 
 ### Configuration Methods
 - `setLogStr(format)` / `getLogStr()` - Set/get the log entry format string
-- `setLogDir(path)` / `getLogDir()` - Set/get the directory for log files
+- `setLogDir(path)` / `getLogDir()` - Set/get the directory for log files. An empty path falls back to the default `"./logs"`, as the constructor does
 - `setRollover(boolean)` / `getRollover()` - Enable/disable daily log file rollover
 - `setLogLevel(level)` / `getLogLevel()` - Set/get the minimum log level
-- `setFileFormat(format)` / `getFileFormat()` - Set/get the log filename format
+- `setFileFormat(format)` / `getFileFormat()` - Set/get the log filename format. On a running logger the change takes effect immediately: the current file is closed with an end banner and the new name is opened
 - `setLogToConsole(bool)` / `getLogToConsole()` - Enable/disable console output
 - `setStartLog(string)` / `getStartLog()` - Set/get the log file start string
 - `setEndLog(string)` / `getEndLog()` - Set/get the log file end string
@@ -200,10 +200,11 @@ Messages below the configured `logLevel` are not written.
 - `logStr` - Log entry format string
 - `startLog` - Message written when log file starts
 - `endLog` - Message written when log file ends
-- `registerProcessHandlers` - Register SIGINT/SIGTERM/exit handlers (default: `false`)
+- `registerProcessHandlers` - Register SIGINT/SIGTERM/exit/uncaughtException handlers (default: `false`). The handlers are shared by every logger that opts in, so a signal flushes all of them before the process ends
 - `keepProcessAlive` - Whether the timers keep the Node process alive (default: `true`)
 - `suppressPathWarnings` - Silence the one-time warning about a `..` segment in the log directory (default: `false`)
 - `onError` - Callback invoked on I/O errors: `(error: Error) => void`
+- `fileSystem` - Filesystem to write through (default: `node:fs`). A seam for tests, so I/O failures can be exercised without a real disk in an awkward state; leave unset in production
 
 ### Logging Methods
 - `log(message, level)` - Log a message at the given level (defaults to `LogFile.DEBUG`)
@@ -214,13 +215,17 @@ Messages below the configured `logLevel` are not written.
 - `error(...args)` - Log an error message
 - `critical(...args)` - Log a critical message (automatically flushes to disk)
 
-All logging methods return `true` on success and `false` on failure. The level-specific methods accept multiple arguments; non-string arguments are stringified and joined with spaces.
+The return value reports whether the entry was **accepted**, not whether it reached disk. Writes are buffered and flushed later, so a full disk or a revoked permission is discovered after the call has already returned `true`. Use the `onError` callback to observe write failures.
+
+Messages below the configured level are discarded before their arguments are serialized, so passing a large object to `debug()` costs nothing on a logger set to `ERROR`.
+
+The level-specific methods accept multiple arguments; non-string arguments are stringified and joined with spaces. `null` and `undefined` are written as `null` and `undefined`.
 
 ### Utility Methods
-- `getHelp()` - Print log levels, the available macros, and every constructor option with its default
+- `getHelp()` - Returns the help text - log levels, the available macros, and every constructor option with its default - and also prints it
 - `flushSync()` - Force immediate synchronous write of buffered logs to disk
-- `file()` - Get the path to the current log file
-- `lastFile()` - Get the path to the previous log file
+- `file()` - Get the path to the current log file, or `""` when none is open (before `start()` and after `stop()`)
+- `lastFile()` - Get the path to the previous log file, or `""` if there has not been one
 - `start()` - Initialize the logger and set up shutdown handlers
 - `stop()` - Stop the logger, flush remaining logs, and clean up resources
 

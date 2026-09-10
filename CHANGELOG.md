@@ -5,6 +5,108 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0]
+
+### Added
+
+- `LogFileOptions`, `LogLevel`, `LogMacro` and `FileSystem` are exported as types.
+- `fileSystem` option: the filesystem the logger writes through, defaulting to
+  `node:fs`. A seam for tests, so behaviour that depends on I/O failing can be
+  driven without putting a real disk into an awkward state.
+
+### Changed
+
+- Log level parameters and returns are typed `LogLevel` rather than `number`:
+  `setLogLevel()`, `getLogLevel()`, `log()` and the `logLevel` option. Not a
+  breaking change - `number` remains assignable to a numeric enum, so code
+  passing a plain number still compiles, and the static `LogFile.DEBUG` and
+  friends are unchanged. Only the editor hints improve.
+- `getHelp()` returns the help text as well as printing it, so it can be shown
+  somewhere other than the console. Existing callers that ignore the return
+  value are unaffected.
+- The package no longer ships declaration files nothing can reach. tsc emits
+  one per source file while rollup bundles the runtime into one, so the
+  declarations for internal modules were published unreachable. A build step
+  computes reachability from the entry declaration and prunes the rest.
+- The stub declarations `dist/logfile.cjs.d.ts` and `dist/logfile.mjs.d.ts` are
+  gone. They typed deep imports of the built files, which the `exports` map
+  already blocks at runtime, so nothing resolvable was removed.
+- The published typings are the generated ones. A hand-maintained
+  `dist/logfile.d.ts` sat alongside them and had already fallen behind the
+  implementation - it still declared `getHelp(): void`. A consumer fixture is
+  now type-checked against the built declarations on every test run.
+- The buffer flushes on bytes actually written rather than on string length.
+  Non-ASCII text takes up to four bytes per character, so the buffer could
+  grow to several times the limit it was compared against before flushing.
+- Log levels, constructor options and format macros are each defined once and
+  rendered into the help text. The lists in the README and in the
+  `LogFileOptions` docs are now checked against them by the test suite.
+- Internals split out of the logger: `LogEntryFormatter` (compiles the entry
+  template once instead of running five string passes per entry), `LogBuffer`
+  (entries, byte accounting and the discard policy), `RotatingFileTarget`
+  (which file is open, and when to switch: naming, date and size rollover,
+  the directory, and the open/close banners) and a `FileSystem` port. The
+  logger keeps levels, formatting, buffering and lifecycle. None of this
+  changes the public API.
+
+### Fixed
+
+- `setFileFormat()` now takes effect on a running logger. The format changed
+  but the open file did not, so `getFileFormat()` reported the new value while
+  `file()` kept returning the old name until the date next changed. The current
+  file is closed with an end banner and the new name opened, as `setLogDir()`
+  already did.
+- `setLogDir("")` no longer redirects logging to the filesystem root. The
+  constructor guarded an empty directory with a fallback to `./logs`; the
+  setter did not, and `mkdirSync` then failed on `""`.
+- Arguments are no longer serialized for messages the log level discards. The
+  level was checked after `stringifyArgs` had already walked every argument, so
+  a logger set to `ERROR` still paid for `debug(bigObject)` in full, and could
+  run application getters for an entry it was about to throw away.
+- A size rollover that cannot write its end banner now moves to the next file
+  anyway. It previously left the suffix and file name untouched, so the file
+  stayed over the limit and every later flush retried the identical failing
+  append, wedging the logger permanently.
+- Restarting no longer appends to a log file that is already over
+  `maxFileSize`. The suffix counter resets on start and the size was only ever
+  checked after a write, so a restart wrote into the oversized file, then into
+  the equally full `-1`, before finding one with room.
+- With several loggers using `registerProcessHandlers`, a signal now flushes
+  all of them. Each logger installed its own handler and every one called
+  `process.exit`, so the first to run ended the process and the rest lost
+  whatever they had buffered. One shared handler per signal is installed for
+  the process, and removed when the last logger using it stops.
+- `file()` and `lastFile()` return `""` when no file is open, rather than the
+  directory path with a trailing slash. `existsSync(logger.file())` answered
+  true about the directory before `start()` and after `stop()`.
+- A size rollover with date rollover disabled names the new file after the day
+  the file belongs to. The internal date advances at midnight even when
+  rollover is off, so the suffixed file was stamped with a day no other file in
+  the sequence shared.
+- `log()` no longer reads the clock four times for one entry. Every macro and
+  the rollover decision now come from a single reading, so an entry written
+  across a second or midnight boundary cannot carry parts that disagree, nor be
+  filed under a date it does not carry.
+- `null` and `undefined` arguments are now written as `null` and `undefined`
+  instead of disappearing. Entries are joined with `Array.join`, which renders
+  nullish values as an empty string, so `info("a", null, "b")` previously wrote
+  `"a  b"` and the argument was lost. `stringifyArgs` now always returns a
+  string, which also makes its declared return type honest.
+- A value referenced more than once in the same object is no longer reported as
+  `[Circular]`. Serialization tracked every object it had visited, so
+  `{ a: x, b: x }` lost its second branch even though nothing was circular.
+  Only a genuine cycle back to an ancestor is reported now.
+- `%DATETIME%` reads the clock once. Its date and time parts were taken from
+  two separate readings and could come from different seconds.
+- Log file name formats are sanitized more thoroughly. `:` `*` `?` `"` `<` `>`
+  and `|` are replaced, as path separators and null bytes already were: `:` in
+  particular opened an NTFS alternate data stream, so `app.log:hidden` wrote to
+  a stream that ordinary directory listings never show. Trailing dots and
+  spaces are dropped, matching what Windows does when it opens the file, and a
+  format whose name is a Windows device (`CON`, `NUL`, `COM1`, and the rest,
+  with or without an extension) falls back to the default rather than
+  addressing the device.
+
 ## [3.7.0]
 
 Hardening release. Log messages are untrusted input, and several code paths did

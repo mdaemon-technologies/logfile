@@ -8,6 +8,15 @@ let logFile: any;
 let DEBUG: number;
 let WARNING: number;
 
+/** Removes scratch directories left by a test, ignoring the ones never created. */
+const removeDirs = (...dirs: string[]): void => {
+  for (const dir of dirs) {
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+};
+
 // Setup function to initialize LogFile before tests
 beforeAll(async () => {
   LogFile = await getLogFile();
@@ -25,12 +34,19 @@ describe("LogFile", () => {
   });
   afterEach(async () => {
     logFile.stop();
-    if (fs.existsSync("./logs")) {
-      fs.rmSync("./logs", { recursive: true, force: true });
-    }
-    if (fs.existsSync("./logs2")) {
-      fs.rmSync("./logs2", { recursive: true, force: true });
-    }
+    removeDirs("./logs", "./logs2");
+  });
+
+  // Safety net: a test that creates a directory and then fails leaves it on
+  // disk, and a stray directory in the repo root is easy to miss because
+  // .gitignore hides *.log. Nothing here should be needed on a green run.
+  //
+  // Limited to directories this suite owns. The a/, b/ and c/ dirs that used
+  // to accumulate are fixed at the source in "should warn only once per
+  // logger"; deleting root directories by those names on every run would be a
+  // trap for anyone who later adds a real one.
+  afterAll(() => {
+    removeDirs("./logs", "./logs2", "./logs3");
   });
 
   it("should start and stop", () => {
@@ -204,13 +220,15 @@ describe("LogFile", () => {
   });
   
   it('should flush logs synchronously when critical is called', () => {
-    // Get the correct method name (flushSync for source/ESM, pushLogs for CJS)
     const flushSyncSpy = jest.spyOn(logFile, 'flushSync');
     
     logFile.critical('Critical error happened');
-    
-    // Check if the method was called
-    expect(flushSyncSpy).toHaveBeenCalledTimes(1);
+
+    // Called, but not pinned to exactly once: internal flushes go through the
+    // same method, so a buffer threshold reached while building the entry
+    // legitimately adds one. Counting made the test depend on how long the
+    // suite had been running.
+    expect(flushSyncSpy).toHaveBeenCalled();
     
     flushSyncSpy.mockRestore();
   });
@@ -1015,7 +1033,7 @@ describe("LogFile", () => {
     });
     afterEach(() => {
       warnSpy.mockRestore();
-      if (fs.existsSync("./logs3")) fs.rmSync("./logs3", { recursive: true, force: true });
+      removeDirs("./logs3");
     });
 
     const warnings = () => warnSpy.mock.calls.map(c => String(c[0]));
@@ -1069,10 +1087,13 @@ describe("LogFile", () => {
     });
 
     it('should warn only once per logger', () => {
-      const noisyLogFile = new LogFile({ logLevel: LogFile.DEBUG, dir: "./logs3/../a" });
+      // The ".." segments stay inside ./logs3 so the directories these create
+      // are removed by afterEach. Paths like "./logs3/../a" resolve to the repo
+      // root and left a/, b/ and c/ behind after every run.
+      const noisyLogFile = new LogFile({ logLevel: LogFile.DEBUG, dir: "./logs3/sub/../a" });
       noisyLogFile.start();
-      noisyLogFile.setLogDir("./logs3/../b");
-      noisyLogFile.setLogDir("./logs3/../c");
+      noisyLogFile.setLogDir("./logs3/sub/../b");
+      noisyLogFile.setLogDir("./logs3/sub/../c");
 
       expect(warnings().length).toBe(1);
       noisyLogFile.setLogDir("./logs3");

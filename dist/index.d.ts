@@ -1,3 +1,4 @@
+import { FileSystem } from "./filesystem";
 declare enum LogLevel {
     DEBUG = 0,
     INFO = 1,
@@ -5,8 +6,6 @@ declare enum LogLevel {
     ERROR = 3,
     CRITICAL = 4
 }
-type LogMacro = "%DATETIME%" | "%DATE%" | "%TIME%" | "%LEVEL%" | "%MESSAGE%";
-type LogFormat = `${string}${LogMacro}${string}` | string | `${LogMacro}`;
 /**
  * Interface for log file options.
  *
@@ -24,6 +23,7 @@ type LogFormat = `${string}${LogMacro}${string}` | string | `${LogMacro}`;
  * @property keepProcessAlive - Whether the flush and rollover timers keep the Node process alive. Default true, matching long-standing behavior. Set false for short-lived scripts that should exit once their work is done: the timers are unref'd so they cannot hold the event loop open, and buffered entries are flushed on process exit.
  * @property suppressPathWarnings - Silences the one-time console warning issued when the log directory contains a ".." segment. Default false. Set true when the path is deliberately relative and hard-coded.
  * @property onError - Callback invoked when a file I/O error occurs.
+ * @property fileSystem - Filesystem to write through. Defaults to node:fs. A seam for tests, so behaviour that depends on I/O failing can be driven without a real disk in an awkward state; production code should leave it unset.
  */
 interface LogFileOptions {
     logLevel?: LogLevel;
@@ -33,42 +33,32 @@ interface LogFileOptions {
     maxFileSize?: number;
     maxBufferEntries?: number;
     logToConsole?: boolean;
-    startLog?: LogFormat;
-    endLog?: LogFormat;
-    logStr?: LogFormat;
+    startLog?: string;
+    endLog?: string;
+    logStr?: string;
     registerProcessHandlers?: boolean;
     keepProcessAlive?: boolean;
     suppressPathWarnings?: boolean;
     onError?: (error: Error) => void;
+    /**
+     * Filesystem to write through. Defaults to node:fs.
+     *
+     * A seam for tests; production code should leave it unset.
+     */
+    fileSystem?: FileSystem;
 }
 /**
  * LogFile class to handle writing log messages to file.
  *
- * @param options - Options for configuring the log file.
- * @param options.logLevel - Minimum log level to record. Default LogLevel.INFO (1).
- * @param options.dir - Directory to write log files. Default ./logs.
- * @param options.fileFormat - Log file name format. Default log-%DATE%.log.
- * @param options.rollover - Whether to rollover to a new log file when the date changes. Default true.
- * @param options.maxFileSize - Maximum file size in bytes before triggering size-based rollover. Default 104857600 (100 MB). When exceeded, a new file is created with an incremental numeric suffix (e.g., log-2024-01-01-1.log, log-2024-01-01-2.log). Set to 0 (or any value <= 0) to disable size-based rollover.
- * @param options.maxBufferEntries - Maximum number of entries retained after a failed write. Default 10000.
- * @param options.logToConsole - Whether to also log to console. Default false.
- * @param options.startLog - Message logged on start.
- * @param options.endLog - Message logged on end.
- * @param options.logStr - Format for log messages.
- * @param options.registerProcessHandlers - Whether to register process termination handlers that flush logs. Default false.
- * @param options.keepProcessAlive - Whether the timers keep the Node process alive. Default true.
- * @param options.onError - Callback invoked when a file I/O error occurs.
+ * @param options - Options for configuring the log file. See LogFileOptions
+ *                  for each option and its default.
  *
  * @returns LogFile instance.
  */
 declare class LogFile {
     private date;
-    private currentFile;
-    private previousFile;
-    private logs;
-    private dir;
-    private fileFormat;
-    private logStr;
+    private buffer;
+    private formatter;
     private startLog;
     private endLog;
     private rolloverEnabled;
@@ -76,24 +66,41 @@ declare class LogFile {
     private logLevel;
     private useServerTime;
     private registerProcessHandlers;
-    private handlersRegistered;
     private keepProcessAlive;
     private suppressPathWarnings;
     private warnedAboutPath;
     private onError?;
-    private readonly BUFFER_SIZE;
+    private readonly fs;
+    private readonly target;
+    /**
+     * Flush once this many entries are buffered.
+     *
+     * One of three independent flush triggers, named apart because they were
+     * previously BUFFER_SIZE (entries), maxBufferSize (bytes) and
+     * maxBufferEntries (the retry cap), which read as variations of one thing.
+     */
+    private readonly FLUSH_AT_ENTRIES;
+    /** Flush once this many bytes are buffered. */
+    private readonly FLUSH_AT_BYTES;
+    /** Flush an entry outright if nothing has been flushed for this long. */
     private readonly BUFFER_TIMEOUT;
     private readonly FLUSH_RETRY_INTERVAL;
     private readonly ROLLOVER_INTERVAL;
     private lastFlushTime;
     private lastFlushError;
-    private bufferSize;
-    private maxBufferSize;
-    private maxBufferEntries;
-    private droppedLogs;
+    /**
+     * Bytes currently buffered, as they will be encoded on disk.
+     *
+     * Counted in UTF-8 bytes, not string length: a log line of non-ASCII text
+     * occupies up to four bytes per character, so measuring length let the
+     * buffer grow well past the limit it was being compared against.
+     */
     private reportingError;
-    private maxFileSize;
-    private fileSuffix;
+    /** Runtime state, kept with the rest rather than buried among the methods. */
+    private pushInterval;
+    private rolloverInterval;
+    private isStarted;
+    private onExitFlush;
     static readonly DEBUG = LogLevel.DEBUG;
     static readonly INFO = LogLevel.INFO;
     static readonly WARNING = LogLevel.WARNING;
@@ -117,6 +124,27 @@ declare class LogFile {
    * @param dir - The directory about to be used
    */
     private warnOnTraversalPath;
+    /**
+   * Releases a timer's hold on the event loop when keepProcessAlive is false.
+   *
+   * An unref'd interval still fires for as long as the process is running; it
+   * simply stops being a reason for the process to stay running.
+   *
+   * @param interval - The interval to release, if any
+   */
+    /**
+   * Runs a timer callback, reporting anything it throws instead of letting it
+   * escape.
+   *
+   * Interval callbacks have no try/catch above them, so an exception from one
+   * surfaces as an uncaught exception in the host application. The callbacks
+   * below handle their own failures; this is the structural guarantee that they
+   * cannot take the process down if one ever stops doing so.
+   *
+   * @param action - The callback to run
+   * @param context - Prefix used when reporting a failure
+   */
+    private safely;
     /**
    * Releases a timer's hold on the event loop when keepProcessAlive is false.
    *
@@ -159,15 +187,6 @@ declare class LogFile {
    */
     private banner;
     /**
-   * Opens the current file with a start banner.
-   *
-   * Appends when the file already exists rather than truncating it. A rollover
-   * can land on an existing file in two ways: a fileFormat without %DATE%
-   * produces the same name every day, and a suffixed name may already be on
-   * disk from an earlier run. Truncating would discard those logs.
-   */
-    private openCurrentFile;
-    /**
    * Rollover to a new log file if the date has changed.
    *
    * Check if the current date is different than the stored date.
@@ -181,27 +200,26 @@ declare class LogFile {
    */
     private rollOver;
     /**
-   * Check if the current log file exceeds the maximum file size.
-   * If so, rollover to a new file with an incremented suffix.
-   */
-    private checkFileSizeAndRollover;
-    /**
-   * Discards the oldest buffered entries once the buffer exceeds
-   * maxBufferEntries, keeping memory bounded while writes are failing.
-   * Every discarded entry is counted and reported.
+   * Trims the buffer to its cap and reports anything discarded.
+   *
+   * The discard policy lives in LogBuffer; reporting has to reach the
+   * application, so that part stays with the logger.
    */
     private enforceBufferLimit;
     /**
-   * If there are logs buffered in memory, write them
-   * to the current log file. Clear the buffer after
-   * writing.
+   * Writes anything buffered in memory to the current log file, immediately.
+   *
+   * Synchronous, so it blocks the event loop: call it sparingly. The logger
+   * flushes on its own as the buffer fills and on a timer, so an explicit call
+   * is only needed to guarantee an entry is on disk before something else
+   * happens - shutting down, or crashing on purpose.
    *
    * When the write fails the entries are put back so a transient failure does
    * not lose them, but the buffer is capped at maxBufferEntries so a persistent
    * failure (full disk, revoked permissions, deleted directory) cannot grow
    * without bound.
    */
-    private pushLogs;
+    flushSync(): void;
     /**
    * Converts a numeric log level to a string representation.
    *
@@ -245,6 +263,11 @@ declare class LogFile {
     /**
    * Sets the file name format to use for log files.
    *
+   * A running logger switches to the new name immediately, closing the old file
+   * with an end banner first. Without that the format changed but the open file
+   * did not, so getFileFormat() reported the new value while file() kept
+   * returning the old one until the date next changed.
+   *
    * @param fileFormat - The file name format
    */
     setFileFormat(fileFormat: string): void;
@@ -271,37 +294,37 @@ declare class LogFile {
    *
    * @param logStr The log string template.
    */
-    setLogStr(logStr: LogFormat): void;
+    setLogStr(logStr: string): void;
     /**
    * Gets the log string template used for logging.
    *
    * @returns The log string template.
    */
-    getLogStr(): LogFormat;
+    getLogStr(): string;
     /**
    * Sets the start log message to use when logging starts.
    *
    * @param startLog The start log message.
    */
-    setStartLog(startLog: LogFormat): void;
+    setStartLog(startLog: string): void;
     /**
    * Gets the start log message used when logging starts.
    *
    * @returns The start log message.
    */
-    getStartLog(): LogFormat;
+    getStartLog(): string;
     /**
    * Sets the end log message to use when logging ends.
    *
    * @param endLog The end log message.
    */
-    setEndLog(endLog: LogFormat): void;
+    setEndLog(endLog: string): void;
     /**
    * Gets the end log message used when logging ends.
    *
    * @returns The end log message.
    */
-    getEndLog(): LogFormat;
+    getEndLog(): string;
     /**
    * Sets whether to roll over to a new log file when the date changes.
    *
@@ -339,7 +362,7 @@ declare class LogFile {
    * the entry format and the file name format, and the constructor options with
    * their defaults.
    */
-    getHelp(): void;
+    getHelp(): string;
     /**
    * Gets the path to the current log file.
    *
@@ -349,17 +372,9 @@ declare class LogFile {
     /**
    * Gets the path to the log file from the previous date.
    *
-   * @returns The path to the log file from the previous date.
+   * @returns The path to the previous log file, or "" if there has not been one.
    */
     lastFile(): string;
-    private pushInterval;
-    private rolloverInterval;
-    private isStarted;
-    private _onExit;
-    private _onSIGINT;
-    private _onSIGTERM;
-    private _onUncaughtException;
-    private _onExitFlush;
     /**
    * Starts the logger by initializing the log directory and files.
    *
@@ -385,53 +400,70 @@ declare class LogFile {
      */
     getDroppedLogs(): number;
     /**
-     * Synchronously flushes logs to disk immediately.
-     * Use sparingly as this blocks the event loop.
-     */
-    flushSync(): void;
-    /**
    * Logs a message to the log file with the given log level.
+   *
+   * The return value reports whether the entry was accepted, NOT whether it
+   * reached disk. Writes are buffered and flushed later, so a full disk or a
+   * revoked permission is discovered after this has already returned true.
+   * Use the onError callback to observe write failures.
    *
    * @param message - The message to log.
    * @param level - The log level, defaults to LogLevel.DEBUG (0).
-   * @returns True if the log was successful, false otherwise.
+   * @returns True if the entry was accepted or filtered out by the log level,
+   *          false if it could not be formatted or buffered.
    */
     log(message: string, level?: LogLevel): boolean;
     /**
+     * Serializes the arguments and logs them at the given level.
+     *
+     * The level is checked BEFORE the arguments are serialized. stringifyArgs
+     * walks objects and runs their getters, so doing it first meant a logger at
+     * ERROR still paid the full cost of every debug(bigObject) call and could
+     * run application code for an entry it was about to discard.
+     *
+     * @param level - The level to log at
+     * @param args - The arguments to be logged
+     * @returns True if the message was accepted, false if it could not be logged.
+     */
+    private logAt;
+    /**
      * Logs a debug message.
      * @param {...any} args - The arguments to be logged.
-     * @returns {boolean} True if the log was successful, false otherwise.
+     * @returns {boolean} True if the log was accepted, false otherwise.
      */
     debug(...args: any[]): boolean;
     /**
      * Logs an info message.
      * @param {...any} args - The arguments to be logged.
-     * @returns {boolean} True if the log was successful, false otherwise.
+     * @returns {boolean} True if the log was accepted, false otherwise.
      */
     info(...args: any[]): boolean;
     /**
      * Logs a warning message.
      * @param {...any} args - The arguments to be logged.
-     * @returns {boolean} True if the log was successful, false otherwise.
+     * @returns {boolean} True if the log was accepted, false otherwise.
      */
     warning(...args: any[]): boolean;
     /**
      * Alias for warning method.
      * @param {...any} args - The arguments to be logged.
-     * @returns {boolean} True if the log was successful, false otherwise.
+     * @returns {boolean} True if the log was accepted, false otherwise.
      */
     warn(...args: any[]): boolean;
     /**
      * Logs an error message.
      * @param {...any} args - The arguments to be logged.
-     * @returns {boolean} True if the log was successful, false otherwise.
+     * @returns {boolean} True if the log was accepted, false otherwise.
      */
     error(...args: any[]): boolean;
     /**
-     * Logs a critical message.
+     * Logs a critical message and flushes it to disk immediately.
      * @param {...any} args - The arguments to be logged.
-     * @returns {boolean} True if the log was successful, false otherwise.
+     * @returns {boolean} True if the log was accepted, false otherwise.
      */
     critical(...args: any[]): boolean;
 }
 export default LogFile;
+export type { LogFileOptions, LogLevel };
+export type { LogMacro } from "./formatter";
+export type { FileSystem } from "./filesystem";
