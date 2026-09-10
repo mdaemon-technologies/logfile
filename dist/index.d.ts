@@ -185,7 +185,7 @@ declare class LogFile {
     /**
    * Renders a start or end banner, expanding %DATETIME% and guaranteeing a trailing newline.
    */
-    private banner;
+    private renderBanner;
     /**
    * Rollover to a new log file if the date has changed.
    *
