@@ -1,129 +1,145 @@
-[![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmdaemon-technologies%2Flogfile%2Fmain%2Fpackage.json&query=%24.version&prefix=v&label=npm&color=blue)](https://www.npmjs.com/package/@mdaemon/logfile) [![Static Badge](https://img.shields.io/badge/node-v18%2B-blue?style=flat&label=node&color=blue)](https://nodejs.org) [![install size](https://packagephobia.com/badge?p=@mdaemon/logfile)](https://packagephobia.com/result?p=@mdaemon/logfile) [![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmdaemon-technologies%2Flogfile%2Fmain%2Fpackage.json&query=%24.license&prefix=v&label=license&color=green)](https://github.com/mdaemon-technologies/logfile/blob/main/LICENSE) [![Node.js CI](https://github.com/mdaemon-technologies/logfile/actions/workflows/node.js.yml/badge.svg)](https://github.com/mdaemon-technologies/logfile/actions/workflows/node.js.yml)
+# @mdaemon/logfile
 
-# @mdaemon/logfile, A node only async logging utility
- 
- Not applicable to a browser context.
+[![npm](https://img.shields.io/npm/v/@mdaemon/logfile?color=blue)](https://www.npmjs.com/package/@mdaemon/logfile)
+[![license](https://img.shields.io/npm/l/@mdaemon/logfile?color=green)](LICENSE)
+[![node](https://img.shields.io/node/v/@mdaemon/logfile)](https://nodejs.org)
+[![install size](https://packagephobia.com/badge?p=@mdaemon/logfile)](https://packagephobia.com/result?p=@mdaemon/logfile)
+[![CI](https://github.com/mdaemon-technologies/logfile/actions/workflows/node.js.yml/badge.svg)](https://github.com/mdaemon-technologies/logfile/actions/workflows/node.js.yml)
 
-# Install #
+A node logging utility
 
-    $ npm install @mdaemon/logfile --save
+A node only async logging utility. Not applicable to a browser context.
 
-# Node CommonJS #
-```javascript
-    const LogFile = require("@mdaemon/logfile");
+## Install
+
+```bash
+npm install @mdaemon/logfile
 ```
 
-# Node Modules #
-```javascript
-    import LogFile from "@mdaemon/logfile";
+## Usage
+
+### ES modules
+
+```js
+import LogFile from "@mdaemon/logfile";
 ```
 
-### LogFile ###
+### CommonJS
 
-#### LogFile Initialization Options ####
-```javascript
-  /* default LogFileOptions 
-   * logLevel: 1 (INFO)
-   * dir: "./logs"
-   * fileFormat: "log-%DATE%.log"
-   * logToConsole: false
-   * rollover: true
-   * maxFileSize: 104857600 (100 MB, 0 = unlimited)
-   * maxBufferEntries: 10000
-   * registerProcessHandlers: false
-   * keepProcessAlive: true
-   * suppressPathWarnings: false
-   * onError: undefined
-   * logStr: "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
-   * startLog: "-----------------------------------------\n" +
-   *           "------- Log Started: %DATETIME%\n" +
-   *           "-----------------------------------------\n";
-   *    
-   * endLog: "-----------------------------------------\n" +
-   *         "------- Log Ended: %DATETIME%\n" +
-   *         "-----------------------------------------\n";
-  */
-```
-#### LogFile Example ####
-```javascript
-  const { INFO, ERROR, WARNING, CRITICAL, DEBUG } = LogFile;
-  const logFile = new LogFile({ logLevel: DEBUG });
-
-  logFile.start();
-
-  logFile.log("There was an error", ERROR);
-
-  logFile.stop();
-  /* file result 
-  -----------------------------------------
-  ------- Log Started: Fri, 08 Mar 2024 16:07:19 GMT
-  -----------------------------------------
-  2024-03-08 16:07:19 | ERROR | There was an error
-  -----------------------------------------
-  ------- Log Ended: Fri, 08 Mar 2024 16:07:19 GMT
-  -----------------------------------------
-  */
+```js
+const LogFile = require("@mdaemon/logfile");
 ```
 
-#### LogFile Options ####
-```javascript
-  // set the log str
-  logFile.setLogStr("%DATE% %TIME% | %LEVEL% | %MESSAGE%");
+## LogFile
 
-  // set the log dir
-  logFile.setLogDir("./logs");
+### LogFile Initialization Options
 
-  // set the rollover boolean
-  logFile.setRollover(true);
+```js
+/* default LogFileOptions 
+ * logLevel: 1 (INFO)
+ * dir: "./logs"
+ * fileFormat: "log-%DATE%.log"
+ * logToConsole: false
+ * rollover: true
+ * maxFileSize: 104857600 (100 MB, 0 = unlimited)
+ * maxBufferEntries: 10000
+ * registerProcessHandlers: false
+ * keepProcessAlive: true
+ * suppressPathWarnings: false
+ * onError: undefined
+ * logStr: "%DATE% %TIME% | %LEVEL% | %MESSAGE%";
+ * startLog: "-----------------------------------------\n" +
+ *           "------- Log Started: %DATETIME%\n" +
+ *           "-----------------------------------------\n";
+ *    
+ * endLog: "-----------------------------------------\n" +
+ *         "------- Log Ended: %DATETIME%\n" +
+ *         "-----------------------------------------\n";
+*/
+```
 
-  // set the log level
-  logFile.setLogLevel(DEBUG);
+### LogFile Example
 
-  // set the file name format
-  logFile.setFileFormat("log-%DATE%.log");
+```js
+const { INFO, ERROR, WARNING, CRITICAL, DEBUG } = LogFile;
+const logFile = new LogFile({ logLevel: DEBUG });
 
-  // set the log to console boolean
-  logFile.setLogToConsole(true);
+logFile.start();
 
-  // set the start log string
-  logFile.setStartLog("-----------------------------------------\n");
+logFile.log("There was an error", ERROR);
 
-  // set the end log string
-  logFile.setEndLog("-----------------------------------------\n");
+logFile.stop();
+/* file result 
+-----------------------------------------
+------- Log Started: Fri, 08 Mar 2024 16:07:19 GMT
+-----------------------------------------
+2024-03-08 16:07:19 | ERROR | There was an error
+-----------------------------------------
+------- Log Ended: Fri, 08 Mar 2024 16:07:19 GMT
+-----------------------------------------
+*/
+```
 
-  // set whether timestamps use server local time (true, default) or UTC (false)
-  logFile.setUseServerTime(true);
+### LogFile Options
 
-  // log help to the console
-  logFile.getHelp();
+```js
+// set the log str
+logFile.setLogStr("%DATE% %TIME% | %LEVEL% | %MESSAGE%");
 
-  // log with an explicit level (defaults to DEBUG when omitted)
-  logFile.log("This is an error log", LogFile.ERROR);
+// set the log dir
+logFile.setLogDir("./logs");
 
-  // log to info
-  logFile.info("This is an info log");
+// set the rollover boolean
+logFile.setRollover(true);
 
-  // log to warning
-  logFile.warning("This is a warning log");
+// set the log level
+logFile.setLogLevel(DEBUG);
 
-  // warn is an alias for warning
-  logFile.warn("This is a warn log");
+// set the file name format
+logFile.setFileFormat("log-%DATE%.log");
 
-  // log to error
-  logFile.error("This is an error log");
+// set the log to console boolean
+logFile.setLogToConsole(true);
 
-  // log to critical
-  logFile.critical("This is a critical log");
+// set the start log string
+logFile.setStartLog("-----------------------------------------\n");
 
-  // log to debug
-  logFile.debug("This is a debug log");
+// set the end log string
+logFile.setEndLog("-----------------------------------------\n");
 
-  // force synchronous flush to disk
-  logFile.flushSync();
+// set whether timestamps use server local time (true, default) or UTC (false)
+logFile.setUseServerTime(true);
+
+// log help to the console
+logFile.getHelp();
+
+// log with an explicit level (defaults to DEBUG when omitted)
+logFile.log("This is an error log", LogFile.ERROR);
+
+// log to info
+logFile.info("This is an info log");
+
+// log to warning
+logFile.warning("This is a warning log");
+
+// warn is an alias for warning
+logFile.warn("This is a warn log");
+
+// log to error
+logFile.error("This is an error log");
+
+// log to critical
+logFile.critical("This is a critical log");
+
+// log to debug
+logFile.debug("This is a debug log");
+
+// force synchronous flush to disk
+logFile.flushSync();
 
 ```
 
-#### Log File Rollover ####
+### Log File Rollover
 
 The logger supports two types of automatic file rollover:
 
@@ -151,7 +167,7 @@ The logger supports two types of automatic file rollover:
 - Each new file (date or size-based) starts with the `startLog` message
 - Files being closed receive the `endLog` message
 
-```javascript
+```js
 // Example: Create a logger with a 50 MB max file size
 const logFile = new LogFile({ 
   maxFileSize: 52428800, // 50 MB in bytes
@@ -165,7 +181,7 @@ const logFile = new LogFile({
 // app-2024-01-02.log (new day, suffix resets)
 ```
 
-#### LogFile Methods ####
+## LogFile Methods
 
 ### Log Levels
 Available as static constants on the `LogFile` class:
@@ -232,7 +248,7 @@ The level-specific methods accept multiple arguments; non-string arguments are s
 ### Forced Shutdown Protection
 The logger can optionally handle various termination scenarios to ensure logs are not lost. Set `registerProcessHandlers: true` to enable:
 
-```javascript
+```js
 const logFile = new LogFile({ 
   logLevel: LogFile.DEBUG,
   registerProcessHandlers: true 
@@ -249,7 +265,7 @@ A running logger uses two timers: one to flush buffered entries, one to check fo
 
 Set `keepProcessAlive: false` for those scripts:
 
-```javascript
+```js
 const logFile = new LogFile({ keepProcessAlive: false });
 logFile.start();
 logFile.info("done");
@@ -278,7 +294,7 @@ The log directory is used exactly as provided. Any path the process can write to
 
 The risk is not the path — it is where the path came from. Compare:
 
-```javascript
+```js
 // Fine: the value is a constant in your source
 const logFile = new LogFile({ dir: "../shared-logs" });
 
@@ -289,7 +305,7 @@ const logFile = new LogFile({ dir: `./logs/${req.query.tenant}` });
 
 In the second case an attacker chooses where your process writes files. This library cannot tell the two apart — both arrive as an ordinary string — so instead it makes the situation visible: if the directory contains a `..` segment, a warning is printed once per logger.
 
-```
+```text
 [logfile] Log directory "./logs/../../etc" contains a ".." segment, so it resolves
 outside the directory it starts from. That is supported and is safe when the value is
 hard-coded. If any part of it comes from user input, request data, or other untrusted
@@ -302,7 +318,7 @@ The warning is triggered by the constructor and by `setLogDir()`, fires at most 
 
 **Keep the directory hard-coded.** If you must build it from a variable, validate that the resolved path stays inside a directory you control before passing it in:
 
-```javascript
+```js
 const path = require("path");
 
 const root = path.resolve("./logs");
@@ -317,7 +333,7 @@ Once you have confirmed the path is intentional, silence the notice with `suppre
 ### Behavior When Writes Fail
 If a write fails — a full disk, revoked permissions, a removed directory — buffered entries are retained and retried, so a transient failure does not lose logs. To keep a persistent failure from exhausting memory, the retained backlog is capped at `maxBufferEntries` (default `10000`) and the oldest entries beyond that are discarded in batches. Each discard is reported through `onError`, and the running total is available from `getDroppedLogs()`:
 
-```javascript
+```js
 const logFile = new LogFile({
   maxBufferEntries: 5000,
   onError: (err) => process.stderr.write(`${err.message}\n`)
@@ -333,7 +349,7 @@ Every filesystem operation is reported through `onError` rather than thrown: `st
 
 The `onError` callback is itself application code, so the logger protects against it too: a callback that logs will not re-enter and cascade, and a callback that throws is contained rather than escaping as an uncaught exception.
 
-# Testing
+## Development
 
 The package includes a comprehensive testing setup that allows for testing the following formats:
 
@@ -355,7 +371,7 @@ npm run test:all
 
 The testing system uses a test helper that dynamically imports the appropriate module format based on environment variables, allowing the same test suite to verify all formats.
 
-```javascript
+```js
 // Example of how to use the test helper in tests
 import { getLogFile } from './test-helper';
 
@@ -374,11 +390,14 @@ Testing different module formats in Jest can be challenging. This project addres
 
 If you're extending the tests, be aware that different module formats may require special handling for imports, mocks, and configuration.
 
-# License #
+## Changelog
 
-Published under the [LGPL-2.1 license](https://github.com/mdaemon-technologies/logfile/blob/main/LICENSE "LGPL-2.1 License").
+See [CHANGELOG.md](CHANGELOG.md).
 
-Published by<br/> 
-<b>MDaemon Technologies, Ltd.<br/>
-Simple Secure Email</b><br/>
+## License
+
+Published under the [LGPL-2.1](LICENSE) license.
+
+Published by **MDaemon Technologies, Ltd.**  
+Simple Secure Email  
 [https://www.mdaemon.com](https://www.mdaemon.com)

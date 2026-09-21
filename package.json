@@ -1,6 +1,6 @@
 {
   "name": "@mdaemon/logfile",
-  "version": "3.8.0",
+  "version": "3.8.1",
   "description": "A node logging utility",
   "type": "module",
   "main": "dist/logfile.cjs",
@@ -43,6 +43,9 @@
     "url": "https://www.mdaemon.com"
   },
   "license": "LGPL-2.1",
+  "engines": {
+    "node": ">=18"
+  },
   "bugs": {
     "url": "https://github.com/mdaemon-technologies/logfile/issues"
   },

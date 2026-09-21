@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.8.0]
+## [3.8.0] - 2026-09-10
 
 ### Added
 
@@ -107,7 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with or without an extension) falls back to the default rather than
   addressing the device.
 
-## [3.7.0]
+## [3.7.0] - 2026-07-30
 
 Hardening release. Log messages are untrusted input, and several code paths did
 not treat them that way. No breaking API changes.
@@ -266,3 +266,6 @@ unchanged. The fixes above close the remaining input-driven issues: a crash
 reachable from any circular object (availability), buffer growth under write
 failure (availability), prefix duplication via `$` patterns and escape-sequence
 residue (log integrity), and traversal via a caller-supplied `fileFormat`.
+
+[3.8.0]: https://www.npmjs.com/package/@mdaemon/logfile/v/3.8.0
+[3.7.0]: https://www.npmjs.com/package/@mdaemon/logfile/v/3.7.0
